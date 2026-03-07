@@ -10,6 +10,9 @@ class JobsDao extends DatabaseAccessor<AppDatabase> with _$JobsDaoMixin {
 
   Stream<List<Job>> watchAllJobs() => select(jobs).watch();
 
+  Stream<Job?> watchJob(int id) =>
+      (select(jobs)..where((j) => j.id.equals(id))).watchSingleOrNull();
+
   Future<List<Job>> getAllJobs() => select(jobs).get();
 
   Future<Job?> getJob(int id) =>

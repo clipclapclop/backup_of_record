@@ -1,15 +1,422 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/database/app_database.dart';
+import '../../../core/database/tables/jobs_table.dart';
+import '../../../core/providers/database_provider.dart';
+import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/secure_storage_service.dart';
+import '../../../core/services/webdav_service.dart';
 
-class SettingsScreen extends ConsumerWidget {
+// Notification flag bit positions
+const kNotifyJobFailed = 0x01;
+const kNotifyFileLocked = 0x02;
+const kNotifyPartialFailure = 0x04;
+const kNotifySuccess = 0x08;
+const kNotifyRetentionCleanup = 0x10;
+const kNotifyLowSpace = 0x20;
+
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // TODO: NAS host, port, HTTPS toggle, username, password, space threshold, notification prefs
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _hostController = TextEditingController();
+  final _portController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _spaceThresholdController = TextEditingController();
+
+  final _storage = SecureStorageService();
+
+  bool _useHttps = true;
+  bool _showPassword = false;
+  int _notificationFlags = 0xFF;
+  ComparisonMethod _defaultComparison = ComparisonMethod.metadata;
+  CompressionType _defaultCompression = CompressionType.none;
+
+  bool _loading = true;
+  bool _saving = false;
+  bool? _connectionResult; // null = not tested, true = ok, false = failed
+  bool _testing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final db = ref.read(databaseProvider);
+    final settings = await db.settingsDao.getSettings();
+    final password = await _storage.getNasPassword();
+
+    if (mounted) {
+      setState(() {
+        if (settings != null) {
+          _hostController.text = settings.nasHost;
+          _portController.text = settings.nasPort.toString();
+          _usernameController.text = settings.nasUsername;
+          _spaceThresholdController.text = settings.spaceWarnThresholdGb.toString();
+          _useHttps = settings.useHttps;
+          _notificationFlags = settings.notificationFlags;
+          _defaultComparison = settings.defaultComparisonMethod;
+          _defaultCompression = settings.defaultCompressionType;
+        } else {
+          _portController.text = '5006';
+          _spaceThresholdController.text = '10';
+        }
+        _passwordController.text = password ?? '';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+
+    try {
+      final db = ref.read(databaseProvider);
+      await db.settingsDao.upsertSettings(GlobalSettingsCompanion(
+        id: const Value(1),
+        nasHost: Value(_hostController.text.trim()),
+        nasPort: Value(int.parse(_portController.text)),
+        useHttps: Value(_useHttps),
+        nasUsername: Value(_usernameController.text.trim()),
+        defaultComparisonMethod: Value(_defaultComparison),
+        defaultCompressionType: Value(_defaultCompression),
+        spaceWarnThresholdGb: Value(int.tryParse(_spaceThresholdController.text) ?? 10),
+        notificationFlags: Value(_notificationFlags),
+      ));
+      await _storage.saveNasPassword(_passwordController.text);
+
+      // Invalidate so other screens see the update
+      ref.invalidate(settingsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings saved')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _testConnection() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _testing = true;
+      _connectionResult = null;
+    });
+
+    final svc = WebDavService(
+      host: _hostController.text.trim(),
+      port: int.parse(_portController.text),
+      useHttps: _useHttps,
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
+    );
+
+    try {
+      final ok = await svc.testConnection().timeout(const Duration(seconds: 10));
+      if (mounted) setState(() => _connectionResult = ok);
+    } catch (_) {
+      if (mounted) setState(() => _connectionResult = false);
+    } finally {
+      svc.dispose();
+      if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  void _toggleFlag(int flag) =>
+      setState(() => _notificationFlags ^= flag);
+
+  bool _hasFlag(int flag) => _notificationFlags & flag != 0;
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _portController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _spaceThresholdController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: const Center(child: Text('Settings — coming soon')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        actions: [
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            TextButton(onPressed: _save, child: const Text('Save')),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _sectionHeader('NAS Connection'),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextFormField(
+                    controller: _hostController,
+                    decoration: const InputDecoration(
+                      labelText: 'Host / IP',
+                      hintText: '192.168.1.100',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.url,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextFormField(
+                    controller: _portController,
+                    decoration: const InputDecoration(
+                      labelText: 'Port',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    validator: (v) {
+                      final n = int.tryParse(v ?? '');
+                      return (n == null || n < 1 || n > 65535) ? 'Invalid' : null;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text('Use HTTPS'),
+              subtitle: Text(_useHttps
+                  ? 'Encrypted — certificate not verified (self-signed OK)'
+                  : 'Plaintext HTTP — only use on trusted networks'),
+              value: _useHttps,
+              onChanged: (v) {
+                setState(() {
+                  _useHttps = v;
+                  _portController.text = v ? '5006' : '5005';
+                  _connectionResult = null;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            _sectionHeader('Credentials'),
+            TextFormField(
+              controller: _usernameController,
+              decoration: const InputDecoration(
+                labelText: 'Username',
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: Icon(_showPassword
+                      ? Icons.visibility_off
+                      : Icons.visibility),
+                  onPressed: () =>
+                      setState(() => _showPassword = !_showPassword),
+                ),
+              ),
+              obscureText: !_showPassword,
+            ),
+            const SizedBox(height: 16),
+            _ConnectionTestRow(
+              onTest: _testConnection,
+              testing: _testing,
+              result: _connectionResult,
+            ),
+            const SizedBox(height: 24),
+            _sectionHeader('Defaults (overridable per job)'),
+            DropdownButtonFormField<ComparisonMethod>(
+              initialValue: _defaultComparison,
+              decoration: const InputDecoration(
+                labelText: 'Default comparison method',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: ComparisonMethod.metadata,
+                  child: Text('Metadata (fast)'),
+                ),
+                DropdownMenuItem(
+                  value: ComparisonMethod.hash,
+                  child: Text('Hash — MD5 (slow but definitive)'),
+                ),
+                DropdownMenuItem(
+                  value: ComparisonMethod.hashThenMetadata,
+                  child: Text('Hash first run, metadata after'),
+                ),
+              ],
+              onChanged: (v) => setState(() => _defaultComparison = v!),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<CompressionType>(
+              initialValue: _defaultCompression,
+              decoration: const InputDecoration(
+                labelText: 'Default compression',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: CompressionType.none, child: Text('None')),
+                DropdownMenuItem(value: CompressionType.gzip, child: Text('Gzip')),
+                DropdownMenuItem(value: CompressionType.zip, child: Text('Zip')),
+              ],
+              onChanged: (v) => setState(() => _defaultCompression = v!),
+            ),
+            const SizedBox(height: 24),
+            _sectionHeader('Storage Warning'),
+            TextFormField(
+              controller: _spaceThresholdController,
+              decoration: const InputDecoration(
+                labelText: 'Warn when NAS free space below (GB)',
+                hintText: '0 to disable',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            ),
+            const SizedBox(height: 24),
+            _sectionHeader('Notifications'),
+            _NotifCheckbox(
+              label: 'Job failed',
+              value: _hasFlag(kNotifyJobFailed),
+              onChanged: (_) => _toggleFlag(kNotifyJobFailed),
+            ),
+            _NotifCheckbox(
+              label: 'Partial failure (some files failed)',
+              value: _hasFlag(kNotifyPartialFailure),
+              onChanged: (_) => _toggleFlag(kNotifyPartialFailure),
+            ),
+            _NotifCheckbox(
+              label: 'File skipped (locked / open)',
+              value: _hasFlag(kNotifyFileLocked),
+              onChanged: (_) => _toggleFlag(kNotifyFileLocked),
+            ),
+            _NotifCheckbox(
+              label: 'Low NAS storage',
+              value: _hasFlag(kNotifyLowSpace),
+              onChanged: (_) => _toggleFlag(kNotifyLowSpace),
+            ),
+            _NotifCheckbox(
+              label: 'Retention cleanup completed',
+              value: _hasFlag(kNotifyRetentionCleanup),
+              onChanged: (_) => _toggleFlag(kNotifyRetentionCleanup),
+            ),
+            _NotifCheckbox(
+              label: 'Job completed successfully (may be noisy)',
+              value: _hasFlag(kNotifySuccess),
+              onChanged: (_) => _toggleFlag(kNotifySuccess),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
     );
   }
+
+  Widget _sectionHeader(String title) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                )),
+      );
+}
+
+class _ConnectionTestRow extends StatelessWidget {
+  final VoidCallback onTest;
+  final bool testing;
+  final bool? result;
+
+  const _ConnectionTestRow({
+    required this.onTest,
+    required this.testing,
+    required this.result,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        OutlinedButton.icon(
+          onPressed: testing ? null : onTest,
+          icon: testing
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.network_check),
+          label: const Text('Test connection'),
+        ),
+        const SizedBox(width: 12),
+        if (result == true)
+          const Row(children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 20),
+            SizedBox(width: 4),
+            Text('Connected', style: TextStyle(color: Colors.green)),
+          ])
+        else if (result == false)
+          const Row(children: [
+            Icon(Icons.error, color: Colors.red, size: 20),
+            SizedBox(width: 4),
+            Text('Failed', style: TextStyle(color: Colors.red)),
+          ]),
+      ],
+    );
+  }
+}
+
+class _NotifCheckbox extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool?> onChanged;
+
+  const _NotifCheckbox({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => CheckboxListTile(
+        title: Text(label),
+        value: value,
+        onChanged: onChanged,
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+      );
 }
