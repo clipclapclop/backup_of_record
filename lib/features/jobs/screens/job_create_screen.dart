@@ -8,6 +8,7 @@ import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/scheduling_service.dart';
 
 class JobCreateScreen extends ConsumerStatefulWidget {
   const JobCreateScreen({super.key});
@@ -142,6 +143,10 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
         isEnabled: const Value(true),
         createdAt: Value(DateTime.now()),
       ));
+      // Schedule the job in WorkManager
+      final job = await db.jobsDao.getJob(id);
+      if (job != null) await SchedulingService.scheduleJob(job);
+
       if (mounted) context.go('/jobs/$id');
     } finally {
       if (mounted) setState(() => _saving = false);

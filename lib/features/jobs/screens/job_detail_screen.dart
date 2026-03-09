@@ -8,6 +8,7 @@ import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/database/tables/job_runs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/jobs_provider.dart';
+import '../../../core/services/scheduling_service.dart';
 
 class JobDetailScreen extends ConsumerWidget {
   final int jobId;
@@ -47,11 +48,12 @@ class _JobDetailView extends ConsumerStatefulWidget {
 class _JobDetailViewState extends ConsumerState<_JobDetailView> {
   Future<void> _toggleEnabled() async {
     final db = ref.read(databaseProvider);
-    await db.jobsDao.updateJob(
-      widget.job.toCompanion(true).copyWith(
-            isEnabled: Value(!widget.job.isEnabled),
-          ),
-    );
+    final updated = widget.job.toCompanion(true).copyWith(
+          isEnabled: Value(!widget.job.isEnabled),
+        );
+    await db.jobsDao.updateJob(updated);
+    final job = await db.jobsDao.getJob(widget.job.id);
+    if (job != null) await SchedulingService.scheduleJob(job);
   }
 
   Future<void> _delete() async {
@@ -75,17 +77,30 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
       ),
     );
     if (confirmed == true && mounted) {
+      await SchedulingService.cancelJob(widget.job.id);
       final db = ref.read(databaseProvider);
       await db.jobsDao.deleteJob(widget.job.id);
       if (mounted) context.go('/');
     }
   }
 
-  void _runNow() => ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Run now — not yet implemented')));
+  Future<void> _runNow() async {
+    await SchedulingService.runNow(widget.job.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Job queued — will run shortly')),
+      );
+    }
+  }
 
-  void _dryRun() => ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Dry run — not yet implemented')));
+  Future<void> _dryRun() async {
+    await SchedulingService.dryRun(widget.job.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dry run queued — check run history shortly')),
+      );
+    }
+  }
 
   void _rebaseline() => ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Re-baseline — not yet implemented')));
