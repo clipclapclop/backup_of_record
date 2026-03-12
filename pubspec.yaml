@@ -61,5 +61,20 @@ dev_dependencies:
   drift_dev: ^2.21.0
   build_runner: ^2.4.13
 
+  # App icon generation
+  flutter_launcher_icons: ^0.14.3
+
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  # Fallback flat icon for older Android / non-adaptive contexts
+  image_path: "assets/icons/icon_foreground.png"
+  # Android adaptive icon (API 26+): separate foreground + background layers
+  adaptive_icon_foreground: "assets/icons/icon_foreground.png"
+  adaptive_icon_background: "assets/icons/icon_background.png"
+  # Removes the default Flutter icon
+  remove_alpha_ios: true
+  min_sdk_android: 21
