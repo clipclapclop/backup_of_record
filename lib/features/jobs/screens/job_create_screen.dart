@@ -198,7 +198,15 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                   (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
             const SizedBox(height: 16),
-            _sectionHeader('Type', icon: Icons.category_rounded),
+            _sectionHeader('Type',
+                icon: Icons.category_rounded,
+                infoTitle: 'Job Type',
+                infoBody:
+                    'Folder Backup: recursively backs up every file inside a folder. '
+                    'New files are uploaded; changed files are handled according to your Change Policy.\n\n'
+                    'Living File: backs up a single file as timestamped snapshots '
+                    '(e.g. budget.xlsx → budget_2024-06-01T02:00.xlsx). '
+                    'Old snapshots are automatically pruned by your Retention rules.'),
             SegmentedButton<JobType>(
               segments: const [
                 ButtonSegment(
@@ -264,7 +272,17 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
 
             // ── Type A: Change policy ───────────────────────────────────────
             if (_jobType == JobType.folderBackup) ...[
-              _sectionHeader('Change Policy', icon: Icons.change_circle_outlined),
+              _sectionHeader('Change Policy',
+                icon: Icons.change_circle_outlined,
+                infoTitle: 'Change Policy',
+                infoBody:
+                    'Controls what happens when a file that was previously backed up has since changed on your phone.\n\n'
+                    'Archive only — once a file is on the NAS, never touch it again, even if the phone copy changes. '
+                    'Ideal for photos and videos that are effectively immutable after being taken.\n\n'
+                    'Overwrite — re-upload changed files, replacing the existing NAS copy. '
+                    'Best for documents where you only want the latest version.\n\n'
+                    'Version on change — keep the original NAS copy and upload the new version alongside it '
+                    'with a timestamp suffix. Gives you a full history of changes.'),
               RadioGroup<ChangePolicy>(
                 groupValue: _changePolicy,
                 onChanged: (v) => setState(() => _changePolicy = v!),
@@ -301,7 +319,16 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
 
             // ── Type B: Retention ───────────────────────────────────────────
             if (_jobType == JobType.livingFile) ...[
-              _sectionHeader('Retention', icon: Icons.layers_rounded),
+              _sectionHeader('Retention',
+                icon: Icons.layers_rounded,
+                infoTitle: 'Retention Rules',
+                infoBody:
+                    'Living File jobs create a new timestamped snapshot on the NAS every time the file changes. '
+                    'Without retention rules, snapshots accumulate forever.\n\n'
+                    'Keep last N versions — delete the oldest snapshots once you have more than N on the NAS.\n\n'
+                    'Keep for Y days — delete snapshots older than Y days.\n\n'
+                    'If both rules are enabled, a snapshot is kept as long as either rule says to keep it '
+                    '(i.e. whichever rule is more lenient wins). At least one rule must be set.'),
               CheckboxListTile(
                 title: const Text('Keep last N versions'),
                 value: _useRetentionCount,
@@ -351,7 +378,16 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ),
             ],
 
-            _sectionHeader('Schedule', icon: Icons.schedule_rounded),
+            _sectionHeader('Schedule',
+                icon: Icons.schedule_rounded,
+                infoTitle: 'Schedule',
+                infoBody:
+                    'Manual only — the job never runs automatically. You trigger it from the job detail screen.\n\n'
+                    'Daily — runs once a day at the time you choose, via Android WorkManager. '
+                    'WorkManager is battery-friendly but may fire slightly late if the device is idle.\n\n'
+                    'Weekly — same as Daily but once per week (runs on the day of the week the job was created).\n\n'
+                    'When file changes (Living File only) — polls the file every N minutes and triggers a backup '
+                    'if the last-modified date has changed. Polling interval is configurable.'),
             DropdownButtonFormField<ScheduleType>(
               initialValue: _scheduleType,
               decoration: const InputDecoration(
@@ -399,7 +435,17 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            _sectionHeader('What to Back Up', icon: Icons.filter_list_rounded),
+            _sectionHeader('What to Back Up',
+                icon: Icons.filter_list_rounded,
+                infoTitle: 'Backup Strategy',
+                infoBody:
+                    'Controls which files are evaluated on each run.\n\n'
+                    'Incremental (recommended) — only looks at files whose last-modified date is newer than '
+                    'the previous run timestamp. Very fast for large folders; skips everything already processed.\n\n'
+                    'From a specific date — only includes files modified on or after a date you choose. '
+                    'Useful for a one-time initial backup of recent files.\n\n'
+                    'Full — re-evaluates every file in the source every single run. '
+                    'Slowest option, but guarantees nothing is missed regardless of timestamps.'),
             DropdownButtonFormField<BackupStrategy>(
               initialValue: _backupStrategy,
               decoration: const InputDecoration(
@@ -439,7 +485,20 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            _sectionHeader('Comparison & Compression', icon: Icons.compare_arrows_rounded),
+            _sectionHeader('Comparison & Compression',
+                icon: Icons.compare_arrows_rounded,
+                infoTitle: 'Comparison & Compression',
+                infoBody:
+                    'Comparison method — how the app decides if a file needs to be re-uploaded:\n'
+                    '• Metadata (fast): compares file size + last-modified date. Very quick, works for most cases.\n'
+                    '• Hash MD5: computes a checksum of the file content. Slower but catches files whose content '
+                    'changed without the date updating (rare, but happens with some apps).\n'
+                    '• Hash first run, metadata after: uses MD5 on the very first run to build an accurate '
+                    'baseline, then switches to fast metadata on subsequent runs.\n\n'
+                    'Compression — whether to compress files before uploading:\n'
+                    '• None: recommended for photos, videos, and other already-compressed formats '
+                    '(compressing them again wastes CPU with little size benefit).\n'
+                    '• Gzip / Zip: can meaningfully reduce transfer size for text files, logs, and documents.'),
             DropdownButtonFormField<ComparisonMethod>(
               initialValue: _comparisonMethod,
               decoration: const InputDecoration(
@@ -489,14 +548,15 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
     );
   }
 
-  Widget _sectionHeader(String title, {IconData? icon}) => Padding(
+  Widget _sectionHeader(String title,
+          {IconData? icon, String? infoTitle, String? infoBody}) =>
+      Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Row(
           children: [
             if (icon != null) ...[
               Icon(icon,
-                  size: 15,
-                  color: Theme.of(context).colorScheme.primary),
+                  size: 15, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 6),
             ],
             Text(
@@ -506,7 +566,44 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                     fontWeight: FontWeight.bold,
                   ),
             ),
+            if (infoTitle != null && infoBody != null) ...[
+              const SizedBox(width: 4),
+              _InfoButton(title: infoTitle, body: infoBody),
+            ],
           ],
         ),
       );
+}
+
+class _InfoButton extends StatelessWidget {
+  final String title;
+  final String body;
+
+  const _InfoButton({required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.info_outline,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      visualDensity: VisualDensity.compact,
+      tooltip: 'What is this?',
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Got it'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

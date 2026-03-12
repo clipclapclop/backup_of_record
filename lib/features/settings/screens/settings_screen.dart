@@ -264,7 +264,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _sectionHeader('NAS Connection', icon: Icons.dns_rounded),
+            _sectionHeader('NAS Connection',
+                icon: Icons.dns_rounded,
+                infoTitle: 'NAS Connection',
+                infoBody:
+                    'Host / IP — the local IP address or hostname of your Synology NAS '
+                    '(e.g. 192.168.1.100 or my-nas.local). Must be reachable from your phone.\n\n'
+                    'Port — the WebDAV port on your NAS. Synology defaults: '
+                    '5006 for HTTPS, 5005 for HTTP. Check DSM → Control Panel → File Services → WebDAV.\n\n'
+                    'Use HTTPS — encrypts the connection. Certificate verification is disabled so '
+                    'self-signed Synology certificates work fine on a home network or VPN. '
+                    'Turn off only if your NAS does not have WebDAV HTTPS enabled.'),
             Row(
               children: [
                 Expanded(
@@ -315,7 +325,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               },
             ),
             const SizedBox(height: 16),
-            _sectionHeader('Credentials', icon: Icons.key_rounded),
+            _sectionHeader('Credentials',
+                icon: Icons.key_rounded,
+                infoTitle: 'Credentials',
+                infoBody:
+                    'The Synology account used to authenticate WebDAV requests. '
+                    'This should be a DSM user with read/write access to the folders you are backing up to.\n\n'
+                    'The password is stored in Android Keystore (encrypted secure storage) — '
+                    'it is never written to the app database or any plain-text file.'),
             TextFormField(
               controller: _usernameController,
               decoration: const InputDecoration(
@@ -351,7 +368,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               result: _connectionResult,
             ),
             const SizedBox(height: 24),
-            _sectionHeader('Defaults (overridable per job)', icon: Icons.tune_rounded),
+            _sectionHeader('Defaults (overridable per job)',
+                icon: Icons.tune_rounded,
+                infoTitle: 'Job Defaults',
+                infoBody:
+                    'These values pre-fill the Comparison Method and Compression fields when creating a new job. '
+                    'Each job can override them individually — changing these defaults does not affect existing jobs.\n\n'
+                    'Comparison method — how the app decides if a file needs re-uploading:\n'
+                    '• Metadata (fast): checks file size + last-modified date.\n'
+                    '• Hash MD5: computes a checksum — slower but catches content changes that don\'t update the date.\n'
+                    '• Hash first run, metadata after: accurate baseline on first run, fast on subsequent runs.\n\n'
+                    'Compression — whether to compress files before upload. '
+                    'None is best for photos and video (already compressed). '
+                    'Gzip/Zip can help for text files and documents.'),
             DropdownButtonFormField<ComparisonMethod>(
               initialValue: _defaultComparison,
               decoration: const InputDecoration(
@@ -389,7 +418,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onChanged: (v) => setState(() => _defaultCompression = v!),
             ),
             const SizedBox(height: 24),
-            _sectionHeader('Storage Warning', icon: Icons.sd_storage_rounded),
+            _sectionHeader('Storage Warning',
+                icon: Icons.sd_storage_rounded,
+                infoTitle: 'Storage Warning',
+                infoBody:
+                    'After each backup run, the app checks the free space on the NAS via WebDAV. '
+                    'If free space drops below this threshold, you\'ll receive a notification.\n\n'
+                    'Set to 0 to disable the warning entirely. '
+                    'A value of 10 (GB) is a reasonable default for most home NAS setups.'),
             TextFormField(
               controller: _spaceThresholdController,
               decoration: const InputDecoration(
@@ -403,7 +439,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             const SizedBox(height: 24),
-            _sectionHeader('Notifications', icon: Icons.notifications_outlined),
+            _sectionHeader('Notifications',
+                icon: Icons.notifications_outlined,
+                infoTitle: 'Notifications',
+                infoBody:
+                    'Choose which events trigger a notification. All are enabled by default.\n\n'
+                    '• Job failed — the entire job errored out before uploading anything.\n'
+                    '• Partial failure — job finished but one or more files could not be uploaded.\n'
+                    '• File skipped (locked) — a file was in use by another app and could not be read.\n'
+                    '• Low NAS storage — free space dropped below your threshold after a run.\n'
+                    '• Retention cleanup — old Living File snapshots were deleted by a retention rule.\n'
+                    '• Job completed successfully — fires on every successful run; can be noisy if jobs run frequently.'),
             _NotifCheckbox(
               label: 'Job failed',
               value: _hasFlag(kNotifyJobFailed),
@@ -441,7 +487,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               tooltip: 'Notify on every successful run — can be frequent if jobs run often',
             ),
             const SizedBox(height: 24),
-            _sectionHeader('App Backup', icon: Icons.save_rounded),
+            _sectionHeader('App Backup',
+                icon: Icons.save_rounded,
+                infoTitle: 'App Backup',
+                infoBody:
+                    'This backs up the app itself — your jobs, run history, and settings — '
+                    'not the files on your NAS.\n\n'
+                    'Export Now saves a .zip file containing the SQLite database to the folder you choose. '
+                    'Use this before uninstalling or switching phones.\n\n'
+                    'Import Backup restores from a previously exported .zip, replacing all current data. '
+                    'The app restarts immediately after a successful import.'),
             Row(
               children: [
                 Expanded(
@@ -511,14 +566,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _sectionHeader(String title, {IconData? icon}) => Padding(
+  Widget _sectionHeader(String title,
+          {IconData? icon, String? infoTitle, String? infoBody}) =>
+      Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Row(
           children: [
             if (icon != null) ...[
               Icon(icon,
-                  size: 15,
-                  color: Theme.of(context).colorScheme.primary),
+                  size: 15, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 6),
             ],
             Text(
@@ -528,9 +584,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     fontWeight: FontWeight.bold,
                   ),
             ),
+            if (infoTitle != null && infoBody != null) ...[
+              const SizedBox(width: 4),
+              _InfoButton(title: infoTitle, body: infoBody),
+            ],
           ],
         ),
       );
+}
+
+class _InfoButton extends StatelessWidget {
+  final String title;
+  final String body;
+
+  const _InfoButton({required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(Icons.info_outline,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      visualDensity: VisualDensity.compact,
+      tooltip: 'What is this?',
+      onPressed: () => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Got it'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ConnectionTestRow extends StatelessWidget {
