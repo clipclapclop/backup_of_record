@@ -25,4 +25,7 @@ class GlobalSettings extends Table {
   // Which notification events to show (stored as a bitmask int)
   IntColumn get notificationFlags =>
       integer().withDefault(const Constant(0xFF))();
+
+  // Directory path where backup zips are saved (null = not set)
+  TextColumn get backupExportPath => text().nullable()();
 }

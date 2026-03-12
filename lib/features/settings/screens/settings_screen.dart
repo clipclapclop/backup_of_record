@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/export_import_service.dart';
 import '../../../core/services/secure_storage_service.dart';
 import '../../../core/services/webdav_service.dart';
 
@@ -45,6 +47,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool? _connectionResult; // null = not tested, true = ok, false = failed
   bool _testing = false;
 
+  String? _backupExportPath;
+  bool _exporting = false;
+  bool _importing = false;
+  final _exportImportService = ExportImportService();
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +74,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _notificationFlags = settings.notificationFlags;
           _defaultComparison = settings.defaultComparisonMethod;
           _defaultCompression = settings.defaultCompressionType;
+          _backupExportPath = settings.backupExportPath;
         } else {
           _portController.text = '5006';
           _spaceThresholdController.text = '10';
@@ -132,6 +140,88 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } finally {
       svc.dispose();
       if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  Future<void> _pickExportDir() async {
+    final dir = await FilePicker.platform.getDirectoryPath();
+    if (dir == null || !mounted) return;
+    setState(() => _backupExportPath = dir);
+    final db = ref.read(databaseProvider);
+    await db.settingsDao.upsertSettings(GlobalSettingsCompanion(
+      id: const Value(1),
+      backupExportPath: Value(dir),
+    ));
+  }
+
+  Future<void> _exportNow() async {
+    if (_backupExportPath == null) return;
+    setState(() => _exporting = true);
+    try {
+      final db = ref.read(databaseProvider);
+      final path = await _exportImportService.exportBackup(db, _backupExportPath!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Backup saved: $path')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _importFromFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+    if (result == null || result.files.single.path == null || !mounted) return;
+    final zipPath = result.files.single.path!;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore from backup?'),
+        content: const Text(
+          'This will replace all current data (jobs, run history, settings) '
+          'with the contents of the selected backup.\n\n'
+          'The app will restart immediately after restoring.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _importing = true);
+    try {
+      final db = ref.read(databaseProvider);
+      await _exportImportService.importBackup(db, zipPath);
+      // importBackup calls exit(0) — unreachable
+    } catch (e) {
+      if (mounted) {
+        setState(() => _importing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Restore failed: $e')),
+        );
+      }
     }
   }
 
@@ -338,6 +428,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               label: 'Job completed successfully (may be noisy)',
               value: _hasFlag(kNotifySuccess),
               onChanged: (_) => _toggleFlag(kNotifySuccess),
+            ),
+            const SizedBox(height: 24),
+            _sectionHeader('App Backup'),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _backupExportPath ?? 'No export location set',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: _backupExportPath == null
+                              ? Theme.of(context).colorScheme.onSurfaceVariant
+                              : null,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.folder_open),
+                  tooltip: 'Pick export folder',
+                  onPressed: _pickExportDir,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: (_backupExportPath != null && !_exporting)
+                        ? _exportNow
+                        : null,
+                    icon: _exporting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.upload_file),
+                    label: const Text('Export Now'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _importing ? null : _importFromFile,
+                    icon: _importing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.download),
+                    label: const Text('Import Backup'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 32),
           ],

@@ -3436,6 +3436,17 @@ class $GlobalSettingsTable extends GlobalSettings
     requiredDuringInsert: false,
     defaultValue: const Constant(0xFF),
   );
+  static const VerificationMeta _backupExportPathMeta = const VerificationMeta(
+    'backupExportPath',
+  );
+  @override
+  late final GeneratedColumn<String> backupExportPath = GeneratedColumn<String>(
+    'backup_export_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3447,6 +3458,7 @@ class $GlobalSettingsTable extends GlobalSettings
     defaultCompressionType,
     spaceWarnThresholdGb,
     notificationFlags,
+    backupExportPath,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3508,6 +3520,15 @@ class $GlobalSettingsTable extends GlobalSettings
         ),
       );
     }
+    if (data.containsKey('backup_export_path')) {
+      context.handle(
+        _backupExportPathMeta,
+        backupExportPath.isAcceptableOrUnknown(
+          data['backup_export_path']!,
+          _backupExportPathMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3561,6 +3582,10 @@ class $GlobalSettingsTable extends GlobalSettings
         DriftSqlType.int,
         data['${effectivePrefix}notification_flags'],
       )!,
+      backupExportPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}backup_export_path'],
+      ),
     );
   }
 
@@ -3588,6 +3613,7 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
   final CompressionType defaultCompressionType;
   final int spaceWarnThresholdGb;
   final int notificationFlags;
+  final String? backupExportPath;
   const GlobalSetting({
     required this.id,
     required this.nasHost,
@@ -3598,6 +3624,7 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     required this.defaultCompressionType,
     required this.spaceWarnThresholdGb,
     required this.notificationFlags,
+    this.backupExportPath,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3623,6 +3650,9 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     }
     map['space_warn_threshold_gb'] = Variable<int>(spaceWarnThresholdGb);
     map['notification_flags'] = Variable<int>(notificationFlags);
+    if (!nullToAbsent || backupExportPath != null) {
+      map['backup_export_path'] = Variable<String>(backupExportPath);
+    }
     return map;
   }
 
@@ -3637,6 +3667,9 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       defaultCompressionType: Value(defaultCompressionType),
       spaceWarnThresholdGb: Value(spaceWarnThresholdGb),
       notificationFlags: Value(notificationFlags),
+      backupExportPath: backupExportPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(backupExportPath),
     );
   }
 
@@ -3661,6 +3694,7 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
         json['spaceWarnThresholdGb'],
       ),
       notificationFlags: serializer.fromJson<int>(json['notificationFlags']),
+      backupExportPath: serializer.fromJson<String?>(json['backupExportPath']),
     );
   }
   @override
@@ -3684,6 +3718,7 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       ),
       'spaceWarnThresholdGb': serializer.toJson<int>(spaceWarnThresholdGb),
       'notificationFlags': serializer.toJson<int>(notificationFlags),
+      'backupExportPath': serializer.toJson<String?>(backupExportPath),
     };
   }
 
@@ -3697,6 +3732,7 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     CompressionType? defaultCompressionType,
     int? spaceWarnThresholdGb,
     int? notificationFlags,
+    Value<String?> backupExportPath = const Value.absent(),
   }) => GlobalSetting(
     id: id ?? this.id,
     nasHost: nasHost ?? this.nasHost,
@@ -3709,6 +3745,9 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
         defaultCompressionType ?? this.defaultCompressionType,
     spaceWarnThresholdGb: spaceWarnThresholdGb ?? this.spaceWarnThresholdGb,
     notificationFlags: notificationFlags ?? this.notificationFlags,
+    backupExportPath: backupExportPath.present
+        ? backupExportPath.value
+        : this.backupExportPath,
   );
   GlobalSetting copyWithCompanion(GlobalSettingsCompanion data) {
     return GlobalSetting(
@@ -3731,6 +3770,9 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       notificationFlags: data.notificationFlags.present
           ? data.notificationFlags.value
           : this.notificationFlags,
+      backupExportPath: data.backupExportPath.present
+          ? data.backupExportPath.value
+          : this.backupExportPath,
     );
   }
 
@@ -3745,7 +3787,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
           ..write('defaultComparisonMethod: $defaultComparisonMethod, ')
           ..write('defaultCompressionType: $defaultCompressionType, ')
           ..write('spaceWarnThresholdGb: $spaceWarnThresholdGb, ')
-          ..write('notificationFlags: $notificationFlags')
+          ..write('notificationFlags: $notificationFlags, ')
+          ..write('backupExportPath: $backupExportPath')
           ..write(')'))
         .toString();
   }
@@ -3761,6 +3804,7 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     defaultCompressionType,
     spaceWarnThresholdGb,
     notificationFlags,
+    backupExportPath,
   );
   @override
   bool operator ==(Object other) =>
@@ -3774,7 +3818,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
           other.defaultComparisonMethod == this.defaultComparisonMethod &&
           other.defaultCompressionType == this.defaultCompressionType &&
           other.spaceWarnThresholdGb == this.spaceWarnThresholdGb &&
-          other.notificationFlags == this.notificationFlags);
+          other.notificationFlags == this.notificationFlags &&
+          other.backupExportPath == this.backupExportPath);
 }
 
 class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
@@ -3787,6 +3832,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
   final Value<CompressionType> defaultCompressionType;
   final Value<int> spaceWarnThresholdGb;
   final Value<int> notificationFlags;
+  final Value<String?> backupExportPath;
   const GlobalSettingsCompanion({
     this.id = const Value.absent(),
     this.nasHost = const Value.absent(),
@@ -3797,6 +3843,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     this.defaultCompressionType = const Value.absent(),
     this.spaceWarnThresholdGb = const Value.absent(),
     this.notificationFlags = const Value.absent(),
+    this.backupExportPath = const Value.absent(),
   });
   GlobalSettingsCompanion.insert({
     this.id = const Value.absent(),
@@ -3808,6 +3855,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     this.defaultCompressionType = const Value.absent(),
     this.spaceWarnThresholdGb = const Value.absent(),
     this.notificationFlags = const Value.absent(),
+    this.backupExportPath = const Value.absent(),
   });
   static Insertable<GlobalSetting> custom({
     Expression<int>? id,
@@ -3819,6 +3867,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     Expression<int>? defaultCompressionType,
     Expression<int>? spaceWarnThresholdGb,
     Expression<int>? notificationFlags,
+    Expression<String>? backupExportPath,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3833,6 +3882,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
       if (spaceWarnThresholdGb != null)
         'space_warn_threshold_gb': spaceWarnThresholdGb,
       if (notificationFlags != null) 'notification_flags': notificationFlags,
+      if (backupExportPath != null) 'backup_export_path': backupExportPath,
     });
   }
 
@@ -3846,6 +3896,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     Value<CompressionType>? defaultCompressionType,
     Value<int>? spaceWarnThresholdGb,
     Value<int>? notificationFlags,
+    Value<String?>? backupExportPath,
   }) {
     return GlobalSettingsCompanion(
       id: id ?? this.id,
@@ -3859,6 +3910,7 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
           defaultCompressionType ?? this.defaultCompressionType,
       spaceWarnThresholdGb: spaceWarnThresholdGb ?? this.spaceWarnThresholdGb,
       notificationFlags: notificationFlags ?? this.notificationFlags,
+      backupExportPath: backupExportPath ?? this.backupExportPath,
     );
   }
 
@@ -3902,6 +3954,9 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     if (notificationFlags.present) {
       map['notification_flags'] = Variable<int>(notificationFlags.value);
     }
+    if (backupExportPath.present) {
+      map['backup_export_path'] = Variable<String>(backupExportPath.value);
+    }
     return map;
   }
 
@@ -3916,7 +3971,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
           ..write('defaultComparisonMethod: $defaultComparisonMethod, ')
           ..write('defaultCompressionType: $defaultCompressionType, ')
           ..write('spaceWarnThresholdGb: $spaceWarnThresholdGb, ')
-          ..write('notificationFlags: $notificationFlags')
+          ..write('notificationFlags: $notificationFlags, ')
+          ..write('backupExportPath: $backupExportPath')
           ..write(')'))
         .toString();
   }
@@ -6574,6 +6630,7 @@ typedef $$GlobalSettingsTableCreateCompanionBuilder =
       Value<CompressionType> defaultCompressionType,
       Value<int> spaceWarnThresholdGb,
       Value<int> notificationFlags,
+      Value<String?> backupExportPath,
     });
 typedef $$GlobalSettingsTableUpdateCompanionBuilder =
     GlobalSettingsCompanion Function({
@@ -6586,6 +6643,7 @@ typedef $$GlobalSettingsTableUpdateCompanionBuilder =
       Value<CompressionType> defaultCompressionType,
       Value<int> spaceWarnThresholdGb,
       Value<int> notificationFlags,
+      Value<String?> backupExportPath,
     });
 
 class $$GlobalSettingsTableFilterComposer
@@ -6643,6 +6701,11 @@ class $$GlobalSettingsTableFilterComposer
     column: $table.notificationFlags,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<String> get backupExportPath => $composableBuilder(
+    column: $table.backupExportPath,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$GlobalSettingsTableOrderingComposer
@@ -6698,6 +6761,11 @@ class $$GlobalSettingsTableOrderingComposer
     column: $table.notificationFlags,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get backupExportPath => $composableBuilder(
+    column: $table.backupExportPath,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$GlobalSettingsTableAnnotationComposer
@@ -6747,6 +6815,11 @@ class $$GlobalSettingsTableAnnotationComposer
     column: $table.notificationFlags,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get backupExportPath => $composableBuilder(
+    column: $table.backupExportPath,
+    builder: (column) => column,
+  );
 }
 
 class $$GlobalSettingsTableTableManager
@@ -6793,6 +6866,7 @@ class $$GlobalSettingsTableTableManager
                     const Value.absent(),
                 Value<int> spaceWarnThresholdGb = const Value.absent(),
                 Value<int> notificationFlags = const Value.absent(),
+                Value<String?> backupExportPath = const Value.absent(),
               }) => GlobalSettingsCompanion(
                 id: id,
                 nasHost: nasHost,
@@ -6803,6 +6877,7 @@ class $$GlobalSettingsTableTableManager
                 defaultCompressionType: defaultCompressionType,
                 spaceWarnThresholdGb: spaceWarnThresholdGb,
                 notificationFlags: notificationFlags,
+                backupExportPath: backupExportPath,
               ),
           createCompanionCallback:
               ({
@@ -6817,6 +6892,7 @@ class $$GlobalSettingsTableTableManager
                     const Value.absent(),
                 Value<int> spaceWarnThresholdGb = const Value.absent(),
                 Value<int> notificationFlags = const Value.absent(),
+                Value<String?> backupExportPath = const Value.absent(),
               }) => GlobalSettingsCompanion.insert(
                 id: id,
                 nasHost: nasHost,
@@ -6827,6 +6903,7 @@ class $$GlobalSettingsTableTableManager
                 defaultCompressionType: defaultCompressionType,
                 spaceWarnThresholdGb: spaceWarnThresholdGb,
                 notificationFlags: notificationFlags,
+                backupExportPath: backupExportPath,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
