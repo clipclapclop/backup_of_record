@@ -10,14 +10,33 @@ class JobListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final jobs = ref.watch(jobsProvider);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Backup of Record'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.backup_rounded, size: 22, color: cs.primary),
+            const SizedBox(width: 8),
+            const Text('Backup of Record'),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.go('/settings'),
+          Tooltip(
+            message: 'Browse & restore files from NAS',
+            child: IconButton(
+              icon: const Icon(Icons.restore_rounded),
+              onPressed: () => context.go('/restore'),
+            ),
+          ),
+          Tooltip(
+            message: 'Settings',
+            child: IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () => context.go('/settings'),
+            ),
           ),
         ],
       ),
@@ -26,11 +45,35 @@ class JobListScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (jobList) {
           if (jobList.isEmpty) {
-            return const Center(
-              child: Text('No backup jobs yet.\nTap + to add one.'),
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.backup_rounded,
+                    size: 80,
+                    color: cs.primary.withValues(alpha: 0.18),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'No backup jobs yet',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap + to create your first backup job.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ],
+              ),
             );
           }
           return ListView.builder(
+            padding: const EdgeInsets.only(top: 8, bottom: 88),
             itemCount: jobList.length,
             itemBuilder: (context, i) => JobCard(
               job: jobList[i],
@@ -39,9 +82,12 @@ class JobListScreen extends ConsumerWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/jobs/new'),
-        child: const Icon(Icons.add),
+      floatingActionButton: Tooltip(
+        message: 'Add backup job',
+        child: FloatingActionButton(
+          onPressed: () => context.go('/jobs/new'),
+          child: const Icon(Icons.add),
+        ),
       ),
     );
   }

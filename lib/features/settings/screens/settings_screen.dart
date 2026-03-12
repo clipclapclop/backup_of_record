@@ -264,7 +264,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _sectionHeader('NAS Connection'),
+            _sectionHeader('NAS Connection', icon: Icons.dns_rounded),
             Row(
               children: [
                 Expanded(
@@ -315,7 +315,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               },
             ),
             const SizedBox(height: 16),
-            _sectionHeader('Credentials'),
+            _sectionHeader('Credentials', icon: Icons.key_rounded),
             TextFormField(
               controller: _usernameController,
               decoration: const InputDecoration(
@@ -331,12 +331,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               decoration: InputDecoration(
                 labelText: 'Password',
                 border: const OutlineInputBorder(),
-                suffixIcon: IconButton(
-                  icon: Icon(_showPassword
-                      ? Icons.visibility_off
-                      : Icons.visibility),
-                  onPressed: () =>
-                      setState(() => _showPassword = !_showPassword),
+                suffixIcon: Tooltip(
+                  message: _showPassword ? 'Hide password' : 'Show password',
+                  child: IconButton(
+                    icon: Icon(_showPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility),
+                    onPressed: () =>
+                        setState(() => _showPassword = !_showPassword),
+                  ),
                 ),
               ),
               obscureText: !_showPassword,
@@ -348,7 +351,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               result: _connectionResult,
             ),
             const SizedBox(height: 24),
-            _sectionHeader('Defaults (overridable per job)'),
+            _sectionHeader('Defaults (overridable per job)', icon: Icons.tune_rounded),
             DropdownButtonFormField<ComparisonMethod>(
               initialValue: _defaultComparison,
               decoration: const InputDecoration(
@@ -386,51 +389,59 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onChanged: (v) => setState(() => _defaultCompression = v!),
             ),
             const SizedBox(height: 24),
-            _sectionHeader('Storage Warning'),
+            _sectionHeader('Storage Warning', icon: Icons.sd_storage_rounded),
             TextFormField(
               controller: _spaceThresholdController,
               decoration: const InputDecoration(
                 labelText: 'Warn when NAS free space below (GB)',
                 hintText: '0 to disable',
                 border: OutlineInputBorder(),
+                helperText:
+                    'You\'ll get a notification when the NAS falls below this threshold.',
               ),
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             ),
             const SizedBox(height: 24),
-            _sectionHeader('Notifications'),
+            _sectionHeader('Notifications', icon: Icons.notifications_outlined),
             _NotifCheckbox(
               label: 'Job failed',
               value: _hasFlag(kNotifyJobFailed),
               onChanged: (_) => _toggleFlag(kNotifyJobFailed),
+              tooltip: 'Notify when a job fails entirely with no files uploaded',
             ),
             _NotifCheckbox(
               label: 'Partial failure (some files failed)',
               value: _hasFlag(kNotifyPartialFailure),
               onChanged: (_) => _toggleFlag(kNotifyPartialFailure),
+              tooltip: 'Notify when a job completes but some files could not be uploaded',
             ),
             _NotifCheckbox(
               label: 'File skipped (locked / open)',
               value: _hasFlag(kNotifyFileLocked),
               onChanged: (_) => _toggleFlag(kNotifyFileLocked),
+              tooltip: 'Notify when a file is skipped because another app has it open',
             ),
             _NotifCheckbox(
               label: 'Low NAS storage',
               value: _hasFlag(kNotifyLowSpace),
               onChanged: (_) => _toggleFlag(kNotifyLowSpace),
+              tooltip: 'Notify when NAS free space drops below your threshold',
             ),
             _NotifCheckbox(
               label: 'Retention cleanup completed',
               value: _hasFlag(kNotifyRetentionCleanup),
               onChanged: (_) => _toggleFlag(kNotifyRetentionCleanup),
+              tooltip: 'Notify when old versioned files are pruned by retention rules',
             ),
             _NotifCheckbox(
               label: 'Job completed successfully (may be noisy)',
               value: _hasFlag(kNotifySuccess),
               onChanged: (_) => _toggleFlag(kNotifySuccess),
+              tooltip: 'Notify on every successful run — can be frequent if jobs run often',
             ),
             const SizedBox(height: 24),
-            _sectionHeader('App Backup'),
+            _sectionHeader('App Backup', icon: Icons.save_rounded),
             Row(
               children: [
                 Expanded(
@@ -444,10 +455,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.folder_open),
-                  tooltip: 'Pick export folder',
-                  onPressed: _pickExportDir,
+                Tooltip(
+                  message: 'Choose the folder where app backups (.zip) will be saved',
+                  child: IconButton(
+                    icon: const Icon(Icons.folder_open_rounded),
+                    onPressed: _pickExportDir,
+                  ),
                 ),
               ],
             ),
@@ -455,32 +468,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: (_backupExportPath != null && !_exporting)
-                        ? _exportNow
-                        : null,
-                    icon: _exporting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.upload_file),
-                    label: const Text('Export Now'),
+                  child: Tooltip(
+                    message: 'Export all jobs, run history and settings as a .zip file',
+                    child: OutlinedButton.icon(
+                      onPressed: (_backupExportPath != null && !_exporting)
+                          ? _exportNow
+                          : null,
+                      icon: _exporting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.upload_file_rounded),
+                      label: const Text('Export Now'),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _importing ? null : _importFromFile,
-                    icon: _importing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.download),
-                    label: const Text('Import Backup'),
+                  child: Tooltip(
+                    message: 'Restore from a previously exported .zip — replaces all current data',
+                    child: OutlinedButton.icon(
+                      onPressed: _importing ? null : _importFromFile,
+                      icon: _importing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.download_rounded),
+                      label: const Text('Import Backup'),
+                    ),
                   ),
                 ),
               ],
@@ -492,13 +511,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _sectionHeader(String title) => Padding(
+  Widget _sectionHeader(String title, {IconData? icon}) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: Text(title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                )),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon,
+                  size: 15,
+                  color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ],
+        ),
       );
 }
 
@@ -517,16 +548,19 @@ class _ConnectionTestRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        OutlinedButton.icon(
-          onPressed: testing ? null : onTest,
-          icon: testing
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.network_check),
-          label: const Text('Test connection'),
+        Tooltip(
+          message: 'Verify the NAS connection using the credentials above (10s timeout)',
+          child: OutlinedButton.icon(
+            onPressed: testing ? null : onTest,
+            icon: testing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.network_check_rounded),
+            label: const Text('Test connection'),
+          ),
         ),
         const SizedBox(width: 12),
         if (result == true)
@@ -550,19 +584,27 @@ class _NotifCheckbox extends StatelessWidget {
   final String label;
   final bool value;
   final ValueChanged<bool?> onChanged;
+  final String? tooltip;
 
   const _NotifCheckbox({
     required this.label,
     required this.value,
     required this.onChanged,
+    this.tooltip,
   });
 
   @override
-  Widget build(BuildContext context) => CheckboxListTile(
-        title: Text(label),
-        value: value,
-        onChanged: onChanged,
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-      );
+  Widget build(BuildContext context) {
+    Widget tile = CheckboxListTile(
+      title: Text(label),
+      value: value,
+      onChanged: onChanged,
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+    );
+    if (tooltip != null) {
+      tile = Tooltip(message: tooltip!, child: tile);
+    }
+    return tile;
+  }
 }

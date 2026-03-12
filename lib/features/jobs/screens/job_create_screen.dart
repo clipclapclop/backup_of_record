@@ -186,7 +186,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _sectionHeader('Job'),
+            _sectionHeader('Job', icon: Icons.label_rounded),
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(
@@ -198,7 +198,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                   (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
             const SizedBox(height: 16),
-            _sectionHeader('Type'),
+            _sectionHeader('Type', icon: Icons.category_rounded),
             SegmentedButton<JobType>(
               segments: const [
                 ButtonSegment(
@@ -231,7 +231,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
-            _sectionHeader('Source & Destination'),
+            _sectionHeader('Source & Destination', icon: Icons.swap_horiz_rounded),
             TextFormField(
               controller: _sourceController,
               decoration: InputDecoration(
@@ -264,7 +264,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
 
             // ── Type A: Change policy ───────────────────────────────────────
             if (_jobType == JobType.folderBackup) ...[
-              _sectionHeader('Change Policy'),
+              _sectionHeader('Change Policy', icon: Icons.change_circle_outlined),
               RadioGroup<ChangePolicy>(
                 groupValue: _changePolicy,
                 onChanged: (v) => setState(() => _changePolicy = v!),
@@ -301,7 +301,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
 
             // ── Type B: Retention ───────────────────────────────────────────
             if (_jobType == JobType.livingFile) ...[
-              _sectionHeader('Retention'),
+              _sectionHeader('Retention', icon: Icons.layers_rounded),
               CheckboxListTile(
                 title: const Text('Keep last N versions'),
                 value: _useRetentionCount,
@@ -351,7 +351,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ),
             ],
 
-            _sectionHeader('Schedule'),
+            _sectionHeader('Schedule', icon: Icons.schedule_rounded),
             DropdownButtonFormField<ScheduleType>(
               initialValue: _scheduleType,
               decoration: const InputDecoration(
@@ -399,12 +399,15 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            _sectionHeader('What to Back Up'),
+            _sectionHeader('What to Back Up', icon: Icons.filter_list_rounded),
             DropdownButtonFormField<BackupStrategy>(
               initialValue: _backupStrategy,
               decoration: const InputDecoration(
                 labelText: 'Backup strategy',
                 border: OutlineInputBorder(),
+                helperText:
+                    'Incremental only processes files changed since the last run. Full re-evaluates everything every time.',
+                helperMaxLines: 2,
               ),
               items: const [
                 DropdownMenuItem(
@@ -436,12 +439,15 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ),
             ],
             const SizedBox(height: 24),
-            _sectionHeader('Comparison & Compression'),
+            _sectionHeader('Comparison & Compression', icon: Icons.compare_arrows_rounded),
             DropdownButtonFormField<ComparisonMethod>(
               initialValue: _comparisonMethod,
               decoration: const InputDecoration(
                 labelText: 'Comparison method',
                 border: OutlineInputBorder(),
+                helperText:
+                    'Metadata uses file size + date. Hash is slower but catches content changes.',
+                helperMaxLines: 2,
               ),
               items: const [
                 DropdownMenuItem(
@@ -462,6 +468,9 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               decoration: const InputDecoration(
                 labelText: 'Compression',
                 border: OutlineInputBorder(),
+                helperText:
+                    'Compress files before uploading. Not recommended for already-compressed media (photos, video).',
+                helperMaxLines: 2,
               ),
               items: const [
                 DropdownMenuItem(
@@ -480,14 +489,24 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
     );
   }
 
-  Widget _sectionHeader(String title) => Padding(
+  Widget _sectionHeader(String title, {IconData? icon}) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon,
+                  size: 15,
+                  color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ],
         ),
       );
 }

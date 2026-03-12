@@ -96,13 +96,18 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const chips = <(FileAction?, String, IconData)>[
-      (null, 'All', Icons.list),
-      (FileAction.uploaded, 'Uploaded', Icons.upload),
-      (FileAction.skipped, 'Skipped', Icons.skip_next),
-      (FileAction.failed, 'Failed', Icons.error_outline),
-      (FileAction.locked, 'Locked', Icons.lock_outline),
-      (FileAction.retentionDeleted, 'Deleted', Icons.delete_outline),
+    const chips = <(FileAction?, String, IconData, String)>[
+      (null, 'All', Icons.list_rounded, 'Show all log entries'),
+      (FileAction.uploaded, 'Uploaded', Icons.upload_rounded,
+          'Files successfully uploaded to NAS'),
+      (FileAction.skipped, 'Skipped', Icons.skip_next_rounded,
+          'Files skipped because they haven\'t changed'),
+      (FileAction.failed, 'Failed', Icons.error_outline_rounded,
+          'Files that failed to upload'),
+      (FileAction.locked, 'Locked', Icons.lock_outline_rounded,
+          'Files skipped because they were open in another app'),
+      (FileAction.retentionDeleted, 'Deleted', Icons.delete_outline_rounded,
+          'Old versions removed by retention rules'),
     ];
 
     return SizedBox(
@@ -114,13 +119,16 @@ class _FilterBar extends StatelessWidget {
           final selected = current == c.$1;
           return Padding(
             padding: const EdgeInsets.only(right: 6),
-            child: FilterChip(
-              label: Text(c.$2),
-              avatar: Icon(c.$3, size: 14),
-              selected: selected,
-              onSelected: (_) => onChanged(c.$1),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              visualDensity: VisualDensity.compact,
+            child: Tooltip(
+              message: c.$4,
+              child: FilterChip(
+                label: Text(c.$2),
+                avatar: Icon(c.$3, size: 14),
+                selected: selected,
+                onSelected: (_) => onChanged(c.$1),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
           );
         }).toList(),
@@ -138,28 +146,42 @@ class _LogTile extends StatelessWidget {
     final theme = Theme.of(context);
     final (icon, color) = _style(log.action, theme);
 
-    return ListTile(
-      dense: true,
-      leading: Icon(icon, color: color, size: 18),
-      title: Text(
-        log.filePath,
-        style: theme.textTheme.bodySmall,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 2,
-      ),
-      subtitle: log.errorMessage != null
-          ? Text(
-              log.errorMessage!,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.error),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            )
-          : null,
-      trailing: Text(
-        DateFormat('HH:mm:ss').format(log.occurredAt.toLocal()),
-        style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(width: 3, color: color ?? Colors.transparent),
+          Expanded(
+            child: ListTile(
+              dense: true,
+              leading: Icon(icon, color: color, size: 18),
+              title: Text(
+                log.filePath,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                  fontSize: 11.5,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+              subtitle: log.errorMessage != null
+                  ? Text(
+                      log.errorMessage!,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: theme.colorScheme.error),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  : null,
+              trailing: Text(
+                DateFormat('HH:mm:ss').format(log.occurredAt.toLocal()),
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color:
+                        theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -167,10 +189,11 @@ class _LogTile extends StatelessWidget {
   (IconData, Color?) _style(FileAction action, ThemeData theme) =>
       switch (action) {
         FileAction.uploaded => (Icons.upload_rounded, Colors.green),
-        FileAction.skipped => (Icons.skip_next, Colors.grey),
-        FileAction.failed => (Icons.error_outline, theme.colorScheme.error),
-        FileAction.locked => (Icons.lock_outline, Colors.orange),
+        FileAction.skipped => (Icons.skip_next_rounded, Colors.grey),
+        FileAction.failed =>
+          (Icons.error_outline_rounded, theme.colorScheme.error),
+        FileAction.locked => (Icons.lock_outline_rounded, Colors.orange),
         FileAction.retentionDeleted =>
-          (Icons.delete_outline, theme.colorScheme.error),
+          (Icons.delete_outline_rounded, theme.colorScheme.error),
       };
 }

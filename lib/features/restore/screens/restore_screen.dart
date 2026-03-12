@@ -152,9 +152,12 @@ class _RestoreScreenState extends ConsumerState<RestoreScreen> {
         appBar: AppBar(
           title: const Text('Restore'),
           leading: _pathStack.length > 1
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: _pop,
+              ? Tooltip(
+                  message: 'Go up to parent folder',
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: _pop,
+                  ),
                 )
               : null,
           bottom: PreferredSize(
@@ -260,32 +263,60 @@ class _Breadcrumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return SizedBox(
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         itemCount: stack.length,
         separatorBuilder: (_, _) => Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(Icons.chevron_right,
+          child: Icon(Icons.chevron_right_rounded,
               size: 16,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+              color: cs.onSurface.withValues(alpha: 0.35)),
         ),
         itemBuilder: (_, i) {
           final label = i == 0
               ? 'NAS'
               : stack[i].split('/').where((s) => s.isNotEmpty).last;
           final isLast = i == stack.length - 1;
-          return GestureDetector(
-            onTap: isLast ? null : () => onTap(i),
-            child: Text(
-              label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: isLast
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                fontWeight: isLast ? FontWeight.bold : FontWeight.normal,
+          return Tooltip(
+            message: isLast ? 'Current folder' : 'Navigate to $label',
+            child: GestureDetector(
+              onTap: isLast ? null : () => onTap(i),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: isLast
+                    ? BoxDecoration(
+                        color: cs.primaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                    : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      i == 0 ? Icons.storage_rounded : Icons.folder_rounded,
+                      size: 13,
+                      color: isLast
+                          ? cs.onPrimaryContainer
+                          : cs.onSurface.withValues(alpha: 0.55),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      label,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: isLast
+                            ? cs.onPrimaryContainer
+                            : cs.onSurface.withValues(alpha: 0.6),
+                        fontWeight:
+                            isLast ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
