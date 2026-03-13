@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/providers/database_provider.dart';
@@ -18,6 +19,8 @@ const kNotifyPartialFailure = 0x04;
 const kNotifySuccess = 0x08;
 const kNotifyRetentionCleanup = 0x10;
 const kNotifyLowSpace = 0x20;
+
+enum _BackAction { cancel, discard, save }
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -41,6 +44,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _notificationFlags = 0xFF;
   ComparisonMethod _defaultComparison = ComparisonMethod.metadata;
   CompressionType _defaultCompression = CompressionType.none;
+
+  // Snapshot of values at load time — used to detect unsaved changes
+  String _initialHost = '';
+  String _initialPort = '';
+  String _initialUsername = '';
+  String _initialPassword = '';
+  String _initialSpaceThreshold = '';
+  bool _initialUseHttps = true;
+  int _initialNotificationFlags = 0xFF;
+  ComparisonMethod _initialComparison = ComparisonMethod.metadata;
+  CompressionType _initialCompression = CompressionType.none;
+
+  bool get _isDirty =>
+      _hostController.text != _initialHost ||
+      _portController.text != _initialPort ||
+      _usernameController.text != _initialUsername ||
+      _passwordController.text != _initialPassword ||
+      _spaceThresholdController.text != _initialSpaceThreshold ||
+      _useHttps != _initialUseHttps ||
+      _notificationFlags != _initialNotificationFlags ||
+      _defaultComparison != _initialComparison ||
+      _defaultCompression != _initialCompression;
 
   bool _loading = true;
   bool _saving = false;
@@ -81,6 +106,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }
         _passwordController.text = password ?? '';
         _loading = false;
+        // Snapshot for dirty detection
+        _initialHost = _hostController.text;
+        _initialPort = _portController.text;
+        _initialUsername = _usernameController.text;
+        _initialPassword = _passwordController.text;
+        _initialSpaceThreshold = _spaceThresholdController.text;
+        _initialUseHttps = _useHttps;
+        _initialNotificationFlags = _notificationFlags;
+        _initialComparison = _defaultComparison;
+        _initialCompression = _defaultCompression;
       });
     }
   }
@@ -107,14 +142,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // Invalidate so other screens see the update
       ref.invalidate(settingsProvider);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings saved')),
-        );
-      }
+      if (mounted) context.pop();
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _handleBack() async {
+    if (!_isDirty) {
+      context.pop();
+      return;
+    }
+    final action = await showDialog<_BackAction>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unsaved changes'),
+        content: const Text('You have unsaved changes. What would you like to do?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _BackAction.cancel),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _BackAction.discard),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, _BackAction.save),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == _BackAction.discard) {
+      context.pop();
+    } else if (action == _BackAction.save) {
+      await _save();
+    }
+    // _BackAction.cancel or null: do nothing
   }
 
   Future<void> _testConnection() async {
@@ -255,9 +321,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: _handleBack,
+        ),
         actions: [
           if (_saving)
             const Padding(
@@ -572,7 +648,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
-    );
+    ), // Scaffold
+    ); // PopScope
   }
 
   Widget _sectionHeader(String title,

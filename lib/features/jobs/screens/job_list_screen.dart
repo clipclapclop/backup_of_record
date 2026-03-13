@@ -35,7 +35,7 @@ class JobListScreen extends ConsumerWidget {
             message: 'Settings',
             child: IconButton(
               icon: const Icon(Icons.settings_outlined),
-              onPressed: () => context.go('/settings'),
+              onPressed: () => context.push('/settings'),
             ),
           ),
         ],
