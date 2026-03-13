@@ -156,9 +156,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _exportNow() async {
     if (_backupExportPath == null) return;
+    final db = ref.read(databaseProvider);
+    final jobs = await db.jobsDao.getAllJobs();
+    if (jobs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No jobs to back up yet.')),
+        );
+      }
+      return;
+    }
     setState(() => _exporting = true);
     try {
-      final db = ref.read(databaseProvider);
       final path = await _exportImportService.exportBackup(db, _backupExportPath!);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
