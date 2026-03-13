@@ -85,7 +85,7 @@ class JobListScreen extends ConsumerWidget {
       floatingActionButton: Tooltip(
         message: 'Add backup job',
         child: FloatingActionButton(
-          onPressed: () => context.go('/jobs/new'),
+          onPressed: () => context.push('/jobs/new'),
           child: const Icon(Icons.add),
         ),
       ),

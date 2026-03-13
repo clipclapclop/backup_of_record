@@ -10,6 +10,8 @@ import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/scheduling_service.dart';
 
+enum _BackAction { cancel, discard, create }
+
 class JobCreateScreen extends ConsumerStatefulWidget {
   const JobCreateScreen({super.key});
 
@@ -48,6 +50,11 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
   bool _useRetentionDays = false;
 
   bool _saving = false;
+
+  bool get _isDirty =>
+      _nameController.text.isNotEmpty ||
+      _sourceController.text.isNotEmpty ||
+      _destinationController.text.isNotEmpty;
 
   @override
   void initState() {
@@ -104,14 +111,92 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
         _ => '',
       };
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _handleBack() async {
+    if (!_isDirty) {
+      context.pop();
+      return;
+    }
+    final action = await showDialog<_BackAction>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard new job?'),
+        content: const Text('You have unsaved changes. What would you like to do?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _BackAction.cancel),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, _BackAction.discard),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, _BackAction.create),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == _BackAction.discard) {
+      context.pop();
+    } else if (action == _BackAction.create) {
+      await _save();
+    }
+    // _BackAction.cancel or null: do nothing
+  }
 
+  Future<void> _save() async {
+    final missing = <String>[];
+    if (_nameController.text.trim().isEmpty) missing.add('Job name');
+    if (_sourceController.text.trim().isEmpty) {
+      missing.add(_jobType == JobType.folderBackup
+          ? 'Source folder on phone'
+          : 'Source file on phone');
+    }
+    if (_destinationController.text.trim().isEmpty) {
+      missing.add('Destination path on NAS');
+    }
     if (_jobType == JobType.livingFile &&
         !_useRetentionCount &&
         !_useRetentionDays) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Set at least one retention rule (count or days)')));
+      missing.add('At least one retention rule (count or days)');
+    }
+
+    // Trigger inline field errors
+    _formKey.currentState!.validate();
+
+    if (missing.isNotEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Required fields missing'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please fill in the following before creating:'),
+              const SizedBox(height: 12),
+              ...missing.map((f) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('• '),
+                        Expanded(child: Text(f)),
+                      ],
+                    ),
+                  )),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
       return;
     }
 
@@ -147,7 +232,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
       final job = await db.jobsDao.getJob(id);
       if (job != null) await SchedulingService.scheduleJob(job);
 
-      if (mounted) context.go('/jobs/$id');
+      if (mounted) context.go('/');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -165,9 +250,19 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('New Backup Job'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Back',
+          onPressed: _handleBack,
+        ),
         actions: [
           if (_saving)
             const Padding(
@@ -545,7 +640,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
           ],
         ),
       ),
-    );
+    ));
   }
 
   Widget _sectionHeader(String title,
