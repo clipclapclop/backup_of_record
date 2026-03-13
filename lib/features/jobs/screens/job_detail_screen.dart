@@ -349,6 +349,32 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
     );
   }
 
+  void _showPathDialog(BuildContext context, String label, String value) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(label),
+        content: SelectableText(
+          value,
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _copyToClipboard(value, label);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Copy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _pathRow(
     BuildContext context, {
     required IconData icon,
@@ -359,8 +385,9 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return Tooltip(
-      message: 'Long-press to copy',
+      message: 'Tap to view full path · Long-press to copy',
       child: InkWell(
+        onTap: () => _showPathDialog(context, label, value),
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(6),
         child: Padding(
