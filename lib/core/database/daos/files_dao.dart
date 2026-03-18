@@ -32,6 +32,12 @@ class FilesDao extends DatabaseAccessor<AppDatabase> with _$FilesDaoMixin {
   Future<List<FileRunLog>> getLogsForRun(int runId) =>
       (select(fileRunLogs)..where((l) => l.runId.equals(runId))).get();
 
+  Stream<List<FileRunLog>> watchLogsForRun(int runId) =>
+      (select(fileRunLogs)
+            ..where((l) => l.runId.equals(runId))
+            ..orderBy([(l) => OrderingTerm.desc(l.occurredAt)]))
+          .watch();
+
   Future<int> insertLog(FileRunLogsCompanion entry) =>
       into(fileRunLogs).insert(entry);
 
@@ -39,6 +45,9 @@ class FilesDao extends DatabaseAccessor<AppDatabase> with _$FilesDaoMixin {
 
   Future<List<InProgressUpload>> getInProgressForJob(int jobId) =>
       (select(inProgressUploads)..where((u) => u.jobId.equals(jobId))).get();
+
+  Stream<List<InProgressUpload>> watchInProgressForJob(int jobId) =>
+      (select(inProgressUploads)..where((u) => u.jobId.equals(jobId))).watch();
 
   Future<int> insertInProgress(InProgressUploadsCompanion entry) =>
       into(inProgressUploads).insert(entry);

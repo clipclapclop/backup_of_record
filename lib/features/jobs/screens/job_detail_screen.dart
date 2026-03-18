@@ -514,7 +514,9 @@ class _RunTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: (run.filesUploaded > 0 || run.filesFailed > 0)
+        onTap: (run.status == RunStatus.running ||
+                run.filesUploaded > 0 ||
+                run.filesFailed > 0)
             ? () => context.push('/jobs/$jobId/runs/${run.id}/log')
             : null,
         child: IntrinsicHeight(
@@ -540,7 +542,9 @@ class _RunTile extends StatelessWidget {
                                 color: theme.colorScheme.onSurface
                                     .withValues(alpha: 0.6)),
                           ),
-                          if (run.filesUploaded > 0 || run.filesFailed > 0)
+                          if (run.status == RunStatus.running ||
+                              run.filesUploaded > 0 ||
+                              run.filesFailed > 0)
                             Padding(
                               padding: const EdgeInsets.only(left: 6),
                               child: Icon(

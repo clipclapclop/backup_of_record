@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/file_run_logs_table.dart';
+import '../../../core/database/tables/job_runs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/jobs_provider.dart';
 
+// Live stream — auto-updates as files are processed
 final _logsProvider =
-    FutureProvider.family<List<FileRunLog>, int>((ref, runId) async {
+    StreamProvider.family<List<FileRunLog>, int>((ref, runId) {
   final db = ref.watch(databaseProvider);
-  final logs = await db.filesDao.getLogsForRun(runId);
-  return logs.reversed.toList();
+  return db.filesDao.watchLogsForRun(runId); // already sorted newest-first
+});
+
+final _inProgressProvider =
+    StreamProvider.family<List<InProgressUpload>, int>((ref, jobId) {
+  final db = ref.watch(databaseProvider);
+  return db.filesDao.watchInProgressForJob(jobId);
 });
 
 class LogScreen extends ConsumerStatefulWidget {
@@ -30,23 +38,66 @@ class _LogScreenState extends ConsumerState<LogScreen> {
   Widget build(BuildContext context) {
     final runAsync = ref.watch(jobRunsProvider(widget.jobId));
     final logsAsync = ref.watch(_logsProvider(widget.runId));
+    final inProgressAsync = ref.watch(_inProgressProvider(widget.jobId));
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     final run = runAsync.valueOrNull
         ?.where((r) => r.id == widget.runId)
         .firstOrNull;
+
+    final isRunning = run?.status == RunStatus.running;
 
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Run Log'),
+            Row(
+              children: [
+                const Text('Run Log'),
+                if (isRunning) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.5)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 8,
+                          height: 8,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'LIVE',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
             if (run != null)
               Text(
                 DateFormat('MMM d, y · HH:mm').format(run.startedAt.toLocal()),
                 style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                    color: cs.onSurface.withValues(alpha: 0.7)),
               ),
           ],
         ),
@@ -58,36 +109,216 @@ class _LogScreenState extends ConsumerState<LogScreen> {
           ),
         ),
       ),
-      body: logsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (logs) {
-          final filtered = _filter == null
-              ? logs
-              : logs.where((l) => l.action == _filter).toList();
+      body: Column(
+        children: [
+          // ── Active upload banner ───────────────────────────────────────
+          if (isRunning)
+            _ActiveUploadBanner(
+              inProgressAsync: inProgressAsync,
+              logsAsync: logsAsync,
+            ),
 
-          if (filtered.isEmpty) {
-            return Center(
-              child: Text(
-                _filter == null ? 'No log entries' : 'No entries for this filter',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
-              ),
-            );
-          }
+          // ── Log list ──────────────────────────────────────────────────
+          Expanded(
+            child: logsAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+              data: (logs) {
+                final filtered = _filter == null
+                    ? logs
+                    : logs.where((l) => l.action == _filter).toList();
 
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: filtered.length,
-            separatorBuilder: (_, _) =>
-                const Divider(height: 1, indent: 16, endIndent: 16),
-            itemBuilder: (_, i) => _LogTile(log: filtered[i]),
-          );
-        },
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isRunning) ...[
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Waiting for files to process…',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                                color: cs.onSurface.withValues(alpha: 0.5)),
+                          ),
+                        ] else
+                          Text(
+                            _filter == null
+                                ? 'No log entries'
+                                : 'No entries for this filter',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                                color:
+                                    cs.onSurface.withValues(alpha: 0.5)),
+                          ),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                  itemBuilder: (_, i) => _LogTile(log: filtered[i]),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+// ── Active upload banner ───────────────────────────────────────────────────────
+
+class _ActiveUploadBanner extends StatelessWidget {
+  final AsyncValue<List<InProgressUpload>> inProgressAsync;
+  final AsyncValue<List<FileRunLog>> logsAsync;
+
+  const _ActiveUploadBanner({
+    required this.inProgressAsync,
+    required this.logsAsync,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final uploads = inProgressAsync.valueOrNull ?? [];
+    final logs = logsAsync.valueOrNull ?? [];
+
+    // Count processed files from the live log
+    final uploaded = logs.where((l) => l.action == FileAction.uploaded).length;
+    final skipped = logs.where((l) => l.action == FileAction.skipped).length;
+    final failed = logs.where((l) => l.action == FileAction.failed).length;
+    final locked = logs.where((l) => l.action == FileAction.locked).length;
+
+    return Container(
+      width: double.infinity,
+      color: Colors.blue.withValues(alpha: 0.06),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Current file
+          if (uploads.isNotEmpty) ...[
+            for (final upload in uploads) ...[
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.blue),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      p.basename(upload.localPath),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: cs.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (upload.totalBytes > 0) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_fmt(upload.bytesUploaded)} / ${_fmt(upload.totalBytes)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface.withValues(alpha: 0.6)),
+                    ),
+                  ],
+                ],
+              ),
+              if (upload.totalBytes > 0) ...[
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: upload.bytesUploaded / upload.totalBytes,
+                    minHeight: 3,
+                    backgroundColor: cs.onSurface.withValues(alpha: 0.1),
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ],
+          ] else ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child:
+                      CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Scanning files…',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.7)),
+                ),
+              ],
+            ),
+          ],
+
+          // Running totals
+          if (uploaded + skipped + failed + locked > 0) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 12,
+              children: [
+                if (uploaded > 0)
+                  _miniStat(context, Icons.upload_rounded, '$uploaded uploaded',
+                      Colors.green),
+                if (skipped > 0)
+                  _miniStat(context, Icons.skip_next_rounded,
+                      '$skipped skipped', Colors.grey),
+                if (failed > 0)
+                  _miniStat(context, Icons.error_outline_rounded,
+                      '$failed failed', cs.error),
+                if (locked > 0)
+                  _miniStat(context, Icons.lock_outline_rounded,
+                      '$locked locked', Colors.orange),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _miniStat(
+      BuildContext context, IconData icon, String label, Color color) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(label,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: color, fontSize: 11)),
+      ],
+    );
+  }
+
+  String _fmt(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1048576) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1073741824) return '${(bytes / 1048576).toStringAsFixed(1)} MB';
+    return '${(bytes / 1073741824).toStringAsFixed(2)} GB';
+  }
+}
+
+// ── Filter bar ────────────────────────────────────────────────────────────────
 
 class _FilterBar extends StatelessWidget {
   final FileAction? current;
@@ -138,6 +369,8 @@ class _FilterBar extends StatelessWidget {
     );
   }
 }
+
+// ── Log tile ──────────────────────────────────────────────────────────────────
 
 class _LogTile extends StatelessWidget {
   final FileRunLog log;

@@ -13,7 +13,7 @@ val keyProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.example.backup_of_record"
+    namespace = "com.clipclapclop.backupofrecord"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.backup_of_record"
+        applicationId = "com.clipclapclop.backupofrecord"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
