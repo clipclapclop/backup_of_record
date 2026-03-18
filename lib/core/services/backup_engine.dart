@@ -229,7 +229,26 @@ class BackupEngine {
           }).toList()
         : allFiles;
 
-    stats.scanned = files.length;
+    stats.scanned = allFiles.length;
+
+    // Log transparency: empty source dir or Stage 1 filtered files
+    if (allFiles.isEmpty) {
+      await _log(runId, null, FileAction.strategyFiltered, job.sourcePath,
+          error:
+              'Source directory is empty or inaccessible — check storage permissions');
+    } else if (cutoff != null) {
+      final passedPaths = files.map((f) => f.path).toSet();
+      for (final f in allFiles) {
+        if (!passedPaths.contains(f.path)) {
+          final rel = p
+              .relative(f.path, from: job.sourcePath)
+              .replaceAll('\\', '/');
+          final record = recordMap[rel];
+          await _log(runId, record?.id, FileAction.strategyFiltered, rel,
+              error: 'Modified before strategy cutoff (${cutoff.toLocal()})');
+        }
+      }
+    }
     int processed = 0;
 
     for (final file in files) {

@@ -108,6 +108,8 @@ class _FilterBar extends StatelessWidget {
           'Files skipped because they were open in another app'),
       (FileAction.retentionDeleted, 'Deleted', Icons.delete_outline_rounded,
           'Old versions removed by retention rules'),
+      (FileAction.strategyFiltered, 'Filtered', Icons.filter_alt_outlined,
+          'Files excluded by backup strategy (fromDate / incremental cutoff, or empty source dir)'),
     ];
 
     return SizedBox(
@@ -195,5 +197,7 @@ class _LogTile extends StatelessWidget {
         FileAction.locked => (Icons.lock_outline_rounded, Colors.orange),
         FileAction.retentionDeleted =>
           (Icons.delete_outline_rounded, theme.colorScheme.error),
+        FileAction.strategyFiltered =>
+          (Icons.filter_alt_outlined, Colors.blueGrey),
       };
 }

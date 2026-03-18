@@ -159,7 +159,10 @@ class _RestoreScreenState extends ConsumerState<RestoreScreen> {
                     onPressed: _pop,
                   ),
                 )
-              : null,
+              : IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(40),
             child: _Breadcrumb(

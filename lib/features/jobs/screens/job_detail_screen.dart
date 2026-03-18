@@ -125,6 +125,7 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(onPressed: () => context.go('/')),
         title: Text(job.name),
         actions: [
           Tooltip(
