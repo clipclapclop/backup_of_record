@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/database/app_database.dart';
@@ -212,11 +215,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _pickExportDir() async {
     final dir = await FilePicker.platform.getDirectoryPath();
     if (dir == null || !mounted) return;
-    setState(() => _backupExportPath = dir);
+
+    // On Android, file_picker via SAF can return internal app paths like
+    // /data/user/0/com.package/... that aren't actually writable via dart:io.
+    // Validate by attempting a test write; fall back to external storage if it fails.
+    String finalDir = dir;
+    try {
+      final testFile = File('$dir/.write_test');
+      await testFile.writeAsString('test');
+      await testFile.delete();
+    } catch (_) {
+      final ext = await getExternalStorageDirectory();
+      if (!mounted) return;
+      if (ext != null) {
+        finalDir = ext.path;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not write to selected folder. Using: $finalDir')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Selected folder is not writable and no fallback available.')),
+        );
+        return;
+      }
+    }
+
+    setState(() => _backupExportPath = finalDir);
     final db = ref.read(databaseProvider);
     await db.settingsDao.upsertSettings(GlobalSettingsCompanion(
       id: const Value(1),
-      backupExportPath: Value(dir),
+      backupExportPath: Value(finalDir),
     ));
   }
 

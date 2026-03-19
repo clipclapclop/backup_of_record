@@ -5,8 +5,9 @@ import '../../../core/database/tables/jobs_table.dart';
 class JobCard extends StatelessWidget {
   final Job job;
   final VoidCallback onTap;
+  final VoidCallback? onEdit;
 
-  const JobCard({super.key, required this.job, required this.onTap});
+  const JobCard({super.key, required this.job, required this.onTap, this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -110,9 +111,9 @@ class JobCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Trailing: status chip / disabled badge
+              // Trailing: edit button + status chip / disabled badge
               Padding(
-                padding: const EdgeInsets.fromLTRB(4, 0, 14, 0),
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -139,6 +140,14 @@ class JobCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onEdit != null)
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  tooltip: 'Edit job',
+                  onPressed: onEdit,
+                  padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
+                  constraints: const BoxConstraints(),
+                ),
             ],
           ),
         ),

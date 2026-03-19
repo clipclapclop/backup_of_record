@@ -41,6 +41,7 @@ class ExportImportService {
     final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final filename = 'backup_of_record_$dateStr.zip';
     final outputPath = p.join(destinationDir, filename);
+    await Directory(destinationDir).create(recursive: true);
     await File(outputPath).writeAsBytes(zipBytes);
 
     return outputPath;

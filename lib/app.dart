@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'features/jobs/screens/job_list_screen.dart';
 import 'features/jobs/screens/job_detail_screen.dart';
-import 'features/jobs/screens/job_create_screen.dart';
+import 'features/jobs/screens/job_create_screen.dart' show JobCreateScreen, JobEditScreenLoader;
 import 'features/settings/screens/settings_screen.dart';
 import 'features/logs/screens/log_screen.dart';
 import 'features/restore/screens/restore_screen.dart';
@@ -17,6 +17,12 @@ final _router = GoRouter(
     GoRoute(
       path: '/jobs/new',
       builder: (_, _) => const JobCreateScreen(),
+    ),
+    GoRoute(
+      path: '/jobs/:id/edit',
+      builder: (_, state) => JobEditScreenLoader(
+        jobId: int.parse(state.pathParameters['id']!),
+      ),
     ),
     GoRoute(
       path: '/jobs/:id',

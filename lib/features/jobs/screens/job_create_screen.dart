@@ -13,7 +13,8 @@ import '../../../core/services/scheduling_service.dart';
 enum _BackAction { cancel, discard, create }
 
 class JobCreateScreen extends ConsumerStatefulWidget {
-  const JobCreateScreen({super.key});
+  final Job? job; // null = create mode, non-null = edit mode
+  const JobCreateScreen({super.key, this.job});
 
   @override
   ConsumerState<JobCreateScreen> createState() => _JobCreateScreenState();
@@ -52,15 +53,79 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
   bool _wifiOnly = false;
   bool _saving = false;
 
-  bool get _isDirty =>
-      _nameController.text.isNotEmpty ||
-      _sourceController.text.isNotEmpty ||
-      _destinationController.text.isNotEmpty;
+  bool get _isDirty {
+    final j = widget.job;
+    if (j == null) {
+      // Create mode: dirty if any key field filled in
+      return _nameController.text.isNotEmpty ||
+          _sourceController.text.isNotEmpty ||
+          _destinationController.text.isNotEmpty;
+    }
+    // Edit mode: dirty only if something actually changed
+    return _nameController.text != j.name ||
+        _sourceController.text != j.sourcePath ||
+        _destinationController.text != j.destinationNasPath ||
+        _jobType != j.jobType ||
+        _scheduleType != j.scheduleType ||
+        _comparisonMethod != j.comparisonMethod ||
+        _compressionType != j.compressionType ||
+        _backupStrategy != j.backupStrategy ||
+        _wifiOnly != j.wifiOnly ||
+        _changePolicy != (j.changePolicy ?? ChangePolicy.archiveOnly) ||
+        _fromDate != j.fromDate ||
+        _useRetentionCount != (j.retentionCount != null) ||
+        _useRetentionDays != (j.retentionDays != null) ||
+        (_useRetentionCount &&
+            _retentionCountController.text !=
+                (j.retentionCount?.toString() ?? '10')) ||
+        (_useRetentionDays &&
+            _retentionDaysController.text !=
+                (j.retentionDays?.toString() ?? '90')) ||
+        _scheduleConfig() != (j.scheduleConfig ?? '');
+  }
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _applyDefaults());
+    if (widget.job != null) {
+      _loadJob(widget.job!);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _applyDefaults());
+    }
+  }
+
+  void _loadJob(Job job) {
+    _nameController.text = job.name;
+    _sourceController.text = job.sourcePath;
+    _destinationController.text = job.destinationNasPath;
+    _jobType = job.jobType;
+    _scheduleType = job.scheduleType;
+    _comparisonMethod = job.comparisonMethod;
+    _compressionType = job.compressionType;
+    _backupStrategy = job.backupStrategy;
+    _wifiOnly = job.wifiOnly;
+    _changePolicy = job.changePolicy ?? ChangePolicy.archiveOnly;
+    _fromDate = job.fromDate;
+    _useRetentionCount = job.retentionCount != null;
+    _useRetentionDays = job.retentionDays != null;
+    if (job.retentionCount != null) {
+      _retentionCountController.text = job.retentionCount.toString();
+    }
+    if (job.retentionDays != null) {
+      _retentionDaysController.text = job.retentionDays.toString();
+    }
+    final config = job.scheduleConfig;
+    if (job.scheduleType == ScheduleType.daily && config != null && config.isNotEmpty) {
+      final parts = config.split(':');
+      if (parts.length == 2) {
+        _dailyTime = TimeOfDay(
+          hour: int.tryParse(parts[0]) ?? 2,
+          minute: int.tryParse(parts[1]) ?? 0,
+        );
+      }
+    } else if (job.scheduleType == ScheduleType.onChange && config != null) {
+      _pollingMinutes = int.tryParse(config) ?? 60;
+    }
   }
 
   void _applyDefaults() {
@@ -120,7 +185,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
     final action = await showDialog<_BackAction>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Discard new job?'),
+        title: Text(widget.job != null ? 'Discard changes?' : 'Discard new job?'),
         content: const Text('You have unsaved changes. What would you like to do?'),
         actions: [
           TextButton(
@@ -133,7 +198,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, _BackAction.create),
-            child: const Text('Create'),
+            child: Text(widget.job != null ? 'Save' : 'Create'),
           ),
         ],
       ),
@@ -204,7 +269,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
     setState(() => _saving = true);
     try {
       final db = ref.read(databaseProvider);
-      final id = await db.jobsDao.insertJob(JobsCompanion(
+      final companion = JobsCompanion(
         name: Value(_nameController.text.trim()),
         jobType: Value(_jobType),
         sourcePath: Value(_sourceController.text.trim()),
@@ -227,14 +292,28 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                 ? int.tryParse(_retentionDaysController.text)
                 : null),
         wifiOnly: Value(_wifiOnly),
-        isEnabled: const Value(true),
-        createdAt: Value(DateTime.now()),
-      ));
-      // Schedule the job in WorkManager
-      final job = await db.jobsDao.getJob(id);
-      if (job != null) await SchedulingService.scheduleJob(job);
+      );
 
-      if (mounted) context.go('/');
+      if (widget.job != null) {
+        // Edit mode — update existing job, preserve id/isEnabled/createdAt
+        await db.jobsDao.updateJob(companion.copyWith(
+          id: Value(widget.job!.id),
+          isEnabled: Value(widget.job!.isEnabled),
+          createdAt: Value(widget.job!.createdAt),
+        ));
+        final updated = await db.jobsDao.getJob(widget.job!.id);
+        if (updated != null) await SchedulingService.scheduleJob(updated);
+        if (mounted) context.pop();
+      } else {
+        // Create mode
+        final id = await db.jobsDao.insertJob(companion.copyWith(
+          isEnabled: const Value(true),
+          createdAt: Value(DateTime.now()),
+        ));
+        final job = await db.jobsDao.getJob(id);
+        if (job != null) await SchedulingService.scheduleJob(job);
+        if (mounted) context.go('/');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -259,7 +338,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
       },
       child: Scaffold(
       appBar: AppBar(
-        title: const Text('New Backup Job'),
+        title: Text(widget.job != null ? 'Edit Job' : 'New Backup Job'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
@@ -275,7 +354,10 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2)),
             )
           else
-            TextButton(onPressed: _save, child: const Text('Create')),
+            TextButton(
+              onPressed: _save,
+              child: Text(widget.job != null ? 'Save' : 'Create'),
+            ),
         ],
       ),
       body: Form(
@@ -321,10 +403,16 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               onSelectionChanged: (s) => setState(() {
                 _jobType = s.first;
                 _sourceController.clear();
-                // onChange schedule only applies to living files
-                if (_jobType == JobType.folderBackup &&
-                    _scheduleType == ScheduleType.onChange) {
-                  _scheduleType = ScheduleType.daily;
+                if (_jobType == JobType.folderBackup) {
+                  // onChange schedule only applies to living files
+                  if (_scheduleType == ScheduleType.onChange) {
+                    _scheduleType = ScheduleType.daily;
+                  }
+                } else {
+                  // Backup strategy doesn't apply to living files; reset to avoid
+                  // stale sinceDate values being persisted.
+                  _backupStrategy = BackupStrategy.full;
+                  _fromDate = null;
                 }
               }),
             ),
@@ -541,55 +629,57 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                   'Skip automatic runs when not connected to WiFi.'),
               secondary: const Icon(Icons.wifi_rounded),
             ),
-            const SizedBox(height: 24),
-            _sectionHeader('What to Back Up',
-                icon: Icons.filter_list_rounded,
-                infoTitle: 'Backup Strategy',
-                infoBody:
-                    'Controls which files are evaluated on each run.\n\n'
-                    'Incremental (recommended) — only looks at files whose last-modified date is newer than '
-                    'the previous run timestamp. Very fast for large folders; skips everything already processed.\n\n'
-                    'Incremental from date — like Incremental, but permanently excludes files not modified since '
-                    'a chosen floor date. Useful when you have old archived files you never want backed up.\n\n'
-                    'Full — re-evaluates every file in the source every single run. '
-                    'Slowest option, but guarantees nothing is missed regardless of timestamps.'),
-            DropdownButtonFormField<BackupStrategy>(
-              initialValue: _backupStrategy,
-              decoration: const InputDecoration(
-                labelText: 'Backup strategy',
-                border: OutlineInputBorder(),
-                helperText:
-                    'Incremental only processes files changed since the last run. Full re-evaluates everything every time.',
-                helperMaxLines: 2,
+            if (_jobType == JobType.folderBackup) ...[
+              const SizedBox(height: 24),
+              _sectionHeader('What to Back Up',
+                  icon: Icons.filter_list_rounded,
+                  infoTitle: 'Backup Strategy',
+                  infoBody:
+                      'Controls which files are evaluated on each run.\n\n'
+                      'Incremental (recommended) — only looks at files whose last-modified date is newer than '
+                      'the previous run timestamp. Very fast for large folders; skips everything already processed.\n\n'
+                      'Incremental from date — like Incremental, but permanently excludes files not modified since '
+                      'a chosen floor date. Useful when you have old archived files you never want backed up.\n\n'
+                      'Full — re-evaluates every file in the source every single run. '
+                      'Slowest option, but guarantees nothing is missed regardless of timestamps.'),
+              DropdownButtonFormField<BackupStrategy>(
+                initialValue: _backupStrategy,
+                decoration: const InputDecoration(
+                  labelText: 'Backup strategy',
+                  border: OutlineInputBorder(),
+                  helperText:
+                      'Incremental only processes files changed since the last run. Full re-evaluates everything every time.',
+                  helperMaxLines: 2,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: BackupStrategy.incremental,
+                    child: Text('Incremental (since last run)'),
+                  ),
+                  DropdownMenuItem(
+                    value: BackupStrategy.sinceDate,
+                    child: Text('Incremental from date'),
+                  ),
+                  DropdownMenuItem(
+                    value: BackupStrategy.full,
+                    child: Text('Full (re-evaluate everything each run)'),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _backupStrategy = v!),
               ),
-              items: const [
-                DropdownMenuItem(
-                  value: BackupStrategy.incremental,
-                  child: Text('Incremental (since last run)'),
-                ),
-                DropdownMenuItem(
-                  value: BackupStrategy.sinceDate,
-                  child: Text('Incremental from date'),
-                ),
-                DropdownMenuItem(
-                  value: BackupStrategy.full,
-                  child: Text('Full (re-evaluate everything each run)'),
+              if (_backupStrategy == BackupStrategy.sinceDate) ...[
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Only files modified on or after'),
+                  trailing: TextButton(
+                    onPressed: _pickFromDate,
+                    child: Text(_fromDate == null
+                        ? 'Pick date'
+                        : '${_fromDate!.year}-${_fromDate!.month.toString().padLeft(2, '0')}-${_fromDate!.day.toString().padLeft(2, '0')}'),
+                  ),
                 ),
               ],
-              onChanged: (v) => setState(() => _backupStrategy = v!),
-            ),
-            if (_backupStrategy == BackupStrategy.sinceDate) ...[
-              const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Only files modified on or after'),
-                trailing: TextButton(
-                  onPressed: _pickFromDate,
-                  child: Text(_fromDate == null
-                      ? 'Pick date'
-                      : '${_fromDate!.year}-${_fromDate!.month.toString().padLeft(2, '0')}-${_fromDate!.day.toString().padLeft(2, '0')}'),
-                ),
-              ),
             ],
             const SizedBox(height: 24),
             _sectionHeader('Comparison & Compression',
@@ -680,6 +770,30 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
           ],
         ),
       );
+}
+
+/// Loads the job by id then hands it to [JobCreateScreen] in edit mode.
+class JobEditScreenLoader extends ConsumerWidget {
+  final int jobId;
+  const JobEditScreenLoader({super.key, required this.jobId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final db = ref.read(databaseProvider);
+    return FutureBuilder<Job?>(
+      future: db.jobsDao.getJob(jobId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final job = snapshot.data;
+        if (job == null) {
+          return const Scaffold(body: Center(child: Text('Job not found')));
+        }
+        return JobCreateScreen(job: job);
+      },
+    );
+  }
 }
 
 class _InfoButton extends StatelessWidget {

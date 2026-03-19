@@ -78,6 +78,7 @@ class JobListScreen extends ConsumerWidget {
             itemBuilder: (context, i) => JobCard(
               job: jobList[i],
               onTap: () => context.go('/jobs/${jobList[i].id}'),
+              onEdit: () => context.push('/jobs/${jobList[i].id}/edit'),
             ),
           );
         },
