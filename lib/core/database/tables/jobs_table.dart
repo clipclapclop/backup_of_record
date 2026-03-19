@@ -47,6 +47,7 @@ class Jobs extends Table {
   IntColumn get retentionCount => integer().nullable()();
   IntColumn get retentionDays => integer().nullable()();
 
+  BoolColumn get wifiOnly => boolean().withDefault(const Constant(false))();
   BoolColumn get isEnabled => boolean().withDefault(const Constant(true))();
 
   DateTimeColumn get createdAt => dateTime()();

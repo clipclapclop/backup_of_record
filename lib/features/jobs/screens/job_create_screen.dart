@@ -49,6 +49,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
   bool _useRetentionCount = true;
   bool _useRetentionDays = false;
 
+  bool _wifiOnly = false;
   bool _saving = false;
 
   bool get _isDirty =>
@@ -225,6 +226,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
             _jobType == JobType.livingFile && _useRetentionDays
                 ? int.tryParse(_retentionDaysController.text)
                 : null),
+        wifiOnly: Value(_wifiOnly),
         isEnabled: const Value(true),
         createdAt: Value(DateTime.now()),
       ));
@@ -529,6 +531,16 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                     _pollingMinutes = int.tryParse(v) ?? _pollingMinutes,
               ),
             ],
+            const SizedBox(height: 12),
+            SwitchListTile(
+              value: _wifiOnly,
+              onChanged: (v) => setState(() => _wifiOnly = v),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('WiFi only'),
+              subtitle: const Text(
+                  'Skip automatic runs when not connected to WiFi.'),
+              secondary: const Icon(Icons.wifi_rounded),
+            ),
             const SizedBox(height: 24),
             _sectionHeader('What to Back Up',
                 icon: Icons.filter_list_rounded,

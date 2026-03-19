@@ -233,6 +233,8 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
                   _sectionTitle(context, 'Configuration'),
                   _configRow(context, Icons.schedule_rounded, 'Schedule',
                       _scheduleLabel(job)),
+                  _configRow(context, Icons.wifi_rounded, 'Network',
+                      job.wifiOnly ? 'WiFi only' : 'Any connection'),
                   _configRow(context, Icons.filter_list_rounded, 'Strategy',
                       _strategyLabel(job.backupStrategy)),
                   _configRow(context, Icons.compare_arrows_rounded,

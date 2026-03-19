@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:intl/intl.dart';
@@ -89,6 +90,19 @@ class BackupEngine {
 
     final job = await _db.jobsDao.getJob(jobId);
     if (job == null) return;
+
+    // WiFi-only check: skip if not connected via WiFi.
+    if (job.wifiOnly && !dryRun) {
+      final connectivity = await Connectivity().checkConnectivity();
+      final onWifi = connectivity.contains(ConnectivityResult.wifi);
+      if (!onWifi) {
+        await _notif.showInfo(
+          'Backup skipped — no WiFi',
+          '${job.name} is set to run on WiFi only.',
+        );
+        return;
+      }
+    }
 
     final settings = await _db.settingsDao.getSettings();
     if (settings == null) {

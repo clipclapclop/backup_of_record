@@ -150,6 +150,21 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _wifiOnlyMeta = const VerificationMeta(
+    'wifiOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> wifiOnly = GeneratedColumn<bool>(
+    'wifi_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("wifi_only" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _isEnabledMeta = const VerificationMeta(
     'isEnabled',
   );
@@ -214,6 +229,7 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
     compressionType,
     retentionCount,
     retentionDays,
+    wifiOnly,
     isEnabled,
     createdAt,
     lastRunAt,
@@ -292,6 +308,12 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
           data['retention_days']!,
           _retentionDaysMeta,
         ),
+      );
+    }
+    if (data.containsKey('wifi_only')) {
+      context.handle(
+        _wifiOnlyMeta,
+        wifiOnly.isAcceptableOrUnknown(data['wifi_only']!, _wifiOnlyMeta),
       );
     }
     if (data.containsKey('is_enabled')) {
@@ -400,6 +422,10 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
         DriftSqlType.int,
         data['${effectivePrefix}retention_days'],
       ),
+      wifiOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}wifi_only'],
+      )!,
       isEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_enabled'],
@@ -459,6 +485,7 @@ class Job extends DataClass implements Insertable<Job> {
   final CompressionType compressionType;
   final int? retentionCount;
   final int? retentionDays;
+  final bool wifiOnly;
   final bool isEnabled;
   final DateTime createdAt;
   final DateTime? lastRunAt;
@@ -478,6 +505,7 @@ class Job extends DataClass implements Insertable<Job> {
     required this.compressionType,
     this.retentionCount,
     this.retentionDays,
+    required this.wifiOnly,
     required this.isEnabled,
     required this.createdAt,
     this.lastRunAt,
@@ -532,6 +560,7 @@ class Job extends DataClass implements Insertable<Job> {
     if (!nullToAbsent || retentionDays != null) {
       map['retention_days'] = Variable<int>(retentionDays);
     }
+    map['wifi_only'] = Variable<bool>(wifiOnly);
     map['is_enabled'] = Variable<bool>(isEnabled);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || lastRunAt != null) {
@@ -569,6 +598,7 @@ class Job extends DataClass implements Insertable<Job> {
       retentionDays: retentionDays == null && nullToAbsent
           ? const Value.absent()
           : Value(retentionDays),
+      wifiOnly: Value(wifiOnly),
       isEnabled: Value(isEnabled),
       createdAt: Value(createdAt),
       lastRunAt: lastRunAt == null && nullToAbsent
@@ -614,6 +644,7 @@ class Job extends DataClass implements Insertable<Job> {
       ),
       retentionCount: serializer.fromJson<int?>(json['retentionCount']),
       retentionDays: serializer.fromJson<int?>(json['retentionDays']),
+      wifiOnly: serializer.fromJson<bool>(json['wifiOnly']),
       isEnabled: serializer.fromJson<bool>(json['isEnabled']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       lastRunAt: serializer.fromJson<DateTime?>(json['lastRunAt']),
@@ -650,6 +681,7 @@ class Job extends DataClass implements Insertable<Job> {
       ),
       'retentionCount': serializer.toJson<int?>(retentionCount),
       'retentionDays': serializer.toJson<int?>(retentionDays),
+      'wifiOnly': serializer.toJson<bool>(wifiOnly),
       'isEnabled': serializer.toJson<bool>(isEnabled),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'lastRunAt': serializer.toJson<DateTime?>(lastRunAt),
@@ -672,6 +704,7 @@ class Job extends DataClass implements Insertable<Job> {
     CompressionType? compressionType,
     Value<int?> retentionCount = const Value.absent(),
     Value<int?> retentionDays = const Value.absent(),
+    bool? wifiOnly,
     bool? isEnabled,
     DateTime? createdAt,
     Value<DateTime?> lastRunAt = const Value.absent(),
@@ -697,6 +730,7 @@ class Job extends DataClass implements Insertable<Job> {
     retentionDays: retentionDays.present
         ? retentionDays.value
         : this.retentionDays,
+    wifiOnly: wifiOnly ?? this.wifiOnly,
     isEnabled: isEnabled ?? this.isEnabled,
     createdAt: createdAt ?? this.createdAt,
     lastRunAt: lastRunAt.present ? lastRunAt.value : this.lastRunAt,
@@ -740,6 +774,7 @@ class Job extends DataClass implements Insertable<Job> {
       retentionDays: data.retentionDays.present
           ? data.retentionDays.value
           : this.retentionDays,
+      wifiOnly: data.wifiOnly.present ? data.wifiOnly.value : this.wifiOnly,
       isEnabled: data.isEnabled.present ? data.isEnabled.value : this.isEnabled,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       lastRunAt: data.lastRunAt.present ? data.lastRunAt.value : this.lastRunAt,
@@ -766,6 +801,7 @@ class Job extends DataClass implements Insertable<Job> {
           ..write('compressionType: $compressionType, ')
           ..write('retentionCount: $retentionCount, ')
           ..write('retentionDays: $retentionDays, ')
+          ..write('wifiOnly: $wifiOnly, ')
           ..write('isEnabled: $isEnabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastRunAt: $lastRunAt, ')
@@ -790,6 +826,7 @@ class Job extends DataClass implements Insertable<Job> {
     compressionType,
     retentionCount,
     retentionDays,
+    wifiOnly,
     isEnabled,
     createdAt,
     lastRunAt,
@@ -813,6 +850,7 @@ class Job extends DataClass implements Insertable<Job> {
           other.compressionType == this.compressionType &&
           other.retentionCount == this.retentionCount &&
           other.retentionDays == this.retentionDays &&
+          other.wifiOnly == this.wifiOnly &&
           other.isEnabled == this.isEnabled &&
           other.createdAt == this.createdAt &&
           other.lastRunAt == this.lastRunAt &&
@@ -834,6 +872,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
   final Value<CompressionType> compressionType;
   final Value<int?> retentionCount;
   final Value<int?> retentionDays;
+  final Value<bool> wifiOnly;
   final Value<bool> isEnabled;
   final Value<DateTime> createdAt;
   final Value<DateTime?> lastRunAt;
@@ -853,6 +892,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     this.compressionType = const Value.absent(),
     this.retentionCount = const Value.absent(),
     this.retentionDays = const Value.absent(),
+    this.wifiOnly = const Value.absent(),
     this.isEnabled = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.lastRunAt = const Value.absent(),
@@ -873,6 +913,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     required CompressionType compressionType,
     this.retentionCount = const Value.absent(),
     this.retentionDays = const Value.absent(),
+    this.wifiOnly = const Value.absent(),
     this.isEnabled = const Value.absent(),
     required DateTime createdAt,
     this.lastRunAt = const Value.absent(),
@@ -901,6 +942,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     Expression<int>? compressionType,
     Expression<int>? retentionCount,
     Expression<int>? retentionDays,
+    Expression<bool>? wifiOnly,
     Expression<bool>? isEnabled,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? lastRunAt,
@@ -922,6 +964,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
       if (compressionType != null) 'compression_type': compressionType,
       if (retentionCount != null) 'retention_count': retentionCount,
       if (retentionDays != null) 'retention_days': retentionDays,
+      if (wifiOnly != null) 'wifi_only': wifiOnly,
       if (isEnabled != null) 'is_enabled': isEnabled,
       if (createdAt != null) 'created_at': createdAt,
       if (lastRunAt != null) 'last_run_at': lastRunAt,
@@ -944,6 +987,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     Value<CompressionType>? compressionType,
     Value<int?>? retentionCount,
     Value<int?>? retentionDays,
+    Value<bool>? wifiOnly,
     Value<bool>? isEnabled,
     Value<DateTime>? createdAt,
     Value<DateTime?>? lastRunAt,
@@ -964,6 +1008,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
       compressionType: compressionType ?? this.compressionType,
       retentionCount: retentionCount ?? this.retentionCount,
       retentionDays: retentionDays ?? this.retentionDays,
+      wifiOnly: wifiOnly ?? this.wifiOnly,
       isEnabled: isEnabled ?? this.isEnabled,
       createdAt: createdAt ?? this.createdAt,
       lastRunAt: lastRunAt ?? this.lastRunAt,
@@ -1028,6 +1073,9 @@ class JobsCompanion extends UpdateCompanion<Job> {
     if (retentionDays.present) {
       map['retention_days'] = Variable<int>(retentionDays.value);
     }
+    if (wifiOnly.present) {
+      map['wifi_only'] = Variable<bool>(wifiOnly.value);
+    }
     if (isEnabled.present) {
       map['is_enabled'] = Variable<bool>(isEnabled.value);
     }
@@ -1060,6 +1108,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
           ..write('compressionType: $compressionType, ')
           ..write('retentionCount: $retentionCount, ')
           ..write('retentionDays: $retentionDays, ')
+          ..write('wifiOnly: $wifiOnly, ')
           ..write('isEnabled: $isEnabled, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastRunAt: $lastRunAt, ')
@@ -4022,6 +4071,7 @@ typedef $$JobsTableCreateCompanionBuilder =
       required CompressionType compressionType,
       Value<int?> retentionCount,
       Value<int?> retentionDays,
+      Value<bool> wifiOnly,
       Value<bool> isEnabled,
       required DateTime createdAt,
       Value<DateTime?> lastRunAt,
@@ -4043,6 +4093,7 @@ typedef $$JobsTableUpdateCompanionBuilder =
       Value<CompressionType> compressionType,
       Value<int?> retentionCount,
       Value<int?> retentionDays,
+      Value<bool> wifiOnly,
       Value<bool> isEnabled,
       Value<DateTime> createdAt,
       Value<DateTime?> lastRunAt,
@@ -4193,6 +4244,11 @@ class $$JobsTableFilterComposer extends Composer<_$AppDatabase, $JobsTable> {
 
   ColumnFilters<int> get retentionDays => $composableBuilder(
     column: $table.retentionDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get wifiOnly => $composableBuilder(
+    column: $table.wifiOnly,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4370,6 +4426,11 @@ class $$JobsTableOrderingComposer extends Composer<_$AppDatabase, $JobsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get wifiOnly => $composableBuilder(
+    column: $table.wifiOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isEnabled => $composableBuilder(
     column: $table.isEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -4466,6 +4527,9 @@ class $$JobsTableAnnotationComposer
     column: $table.retentionDays,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get wifiOnly =>
+      $composableBuilder(column: $table.wifiOnly, builder: (column) => column);
 
   GeneratedColumn<bool> get isEnabled =>
       $composableBuilder(column: $table.isEnabled, builder: (column) => column);
@@ -4604,6 +4668,7 @@ class $$JobsTableTableManager
                 Value<CompressionType> compressionType = const Value.absent(),
                 Value<int?> retentionCount = const Value.absent(),
                 Value<int?> retentionDays = const Value.absent(),
+                Value<bool> wifiOnly = const Value.absent(),
                 Value<bool> isEnabled = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> lastRunAt = const Value.absent(),
@@ -4623,6 +4688,7 @@ class $$JobsTableTableManager
                 compressionType: compressionType,
                 retentionCount: retentionCount,
                 retentionDays: retentionDays,
+                wifiOnly: wifiOnly,
                 isEnabled: isEnabled,
                 createdAt: createdAt,
                 lastRunAt: lastRunAt,
@@ -4644,6 +4710,7 @@ class $$JobsTableTableManager
                 required CompressionType compressionType,
                 Value<int?> retentionCount = const Value.absent(),
                 Value<int?> retentionDays = const Value.absent(),
+                Value<bool> wifiOnly = const Value.absent(),
                 Value<bool> isEnabled = const Value.absent(),
                 required DateTime createdAt,
                 Value<DateTime?> lastRunAt = const Value.absent(),
@@ -4663,6 +4730,7 @@ class $$JobsTableTableManager
                 compressionType: compressionType,
                 retentionCount: retentionCount,
                 retentionDays: retentionDays,
+                wifiOnly: wifiOnly,
                 isEnabled: isEnabled,
                 createdAt: createdAt,
                 lastRunAt: lastRunAt,
