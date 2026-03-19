@@ -213,7 +213,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
         scheduleConfig: Value(_scheduleConfig()),
         backupStrategy: Value(_backupStrategy),
         fromDate: Value(
-            _backupStrategy == BackupStrategy.fromDate ? _fromDate : null),
+            _backupStrategy == BackupStrategy.sinceDate ? _fromDate : null),
         comparisonMethod: Value(_comparisonMethod),
         changePolicy: Value(
             _jobType == JobType.folderBackup ? _changePolicy : null),
@@ -549,8 +549,8 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                     'Controls which files are evaluated on each run.\n\n'
                     'Incremental (recommended) — only looks at files whose last-modified date is newer than '
                     'the previous run timestamp. Very fast for large folders; skips everything already processed.\n\n'
-                    'From a specific date — only includes files modified on or after a date you choose. '
-                    'Useful for a one-time initial backup of recent files.\n\n'
+                    'Incremental from date — like Incremental, but permanently excludes files not modified since '
+                    'a chosen floor date. Useful when you have old archived files you never want backed up.\n\n'
                     'Full — re-evaluates every file in the source every single run. '
                     'Slowest option, but guarantees nothing is missed regardless of timestamps.'),
             DropdownButtonFormField<BackupStrategy>(
@@ -568,8 +568,8 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                   child: Text('Incremental (since last run)'),
                 ),
                 DropdownMenuItem(
-                  value: BackupStrategy.fromDate,
-                  child: Text('From a specific date forward'),
+                  value: BackupStrategy.sinceDate,
+                  child: Text('Incremental from date'),
                 ),
                 DropdownMenuItem(
                   value: BackupStrategy.full,
@@ -578,7 +578,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
               ],
               onChanged: (v) => setState(() => _backupStrategy = v!),
             ),
-            if (_backupStrategy == BackupStrategy.fromDate) ...[
+            if (_backupStrategy == BackupStrategy.sinceDate) ...[
               const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,

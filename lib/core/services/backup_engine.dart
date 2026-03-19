@@ -572,7 +572,10 @@ class BackupEngine {
 
   DateTime? _strategyCutoff(Job job) => switch (job.backupStrategy) {
         BackupStrategy.full => null,
-        BackupStrategy.fromDate => job.fromDate,
+        BackupStrategy.sinceDate =>
+          job.lastRunAt != null && job.lastRunAt!.isAfter(job.fromDate!)
+              ? job.lastRunAt
+              : job.fromDate,
         BackupStrategy.incremental => job.lastRunAt,
       };
 

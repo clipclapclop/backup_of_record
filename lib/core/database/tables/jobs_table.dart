@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
 /// Backup strategy: what scope of files to consider each run.
-enum BackupStrategy { full, fromDate, incremental }
+enum BackupStrategy { full, sinceDate, incremental }
 
 /// For Type A (folder): what to do when a tracked file changes on the phone.
 enum ChangePolicy { archiveOnly, overwrite, versionOnChange }

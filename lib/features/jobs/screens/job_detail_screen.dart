@@ -475,7 +475,7 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
 
   String _strategyLabel(BackupStrategy s) => switch (s) {
         BackupStrategy.incremental => 'Incremental',
-        BackupStrategy.fromDate => 'From date',
+        BackupStrategy.sinceDate => 'Incremental from date',
         BackupStrategy.full => 'Full',
       };
 
