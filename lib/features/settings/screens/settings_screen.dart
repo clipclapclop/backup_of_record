@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/providers/database_provider.dart';
@@ -30,7 +31,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _hostController = TextEditingController();
   final _portController = TextEditingController();
@@ -72,6 +74,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _saving = false;
   bool? _connectionResult; // null = not tested, true = ok, false = failed
   bool _testing = false;
+  bool? _batteryExempt; // null = unknown, true = exempted, false = not exempted
 
   String? _backupExportPath; // SAF URI, persisted in DB
   bool _exporting = false;
@@ -81,7 +84,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSettings();
+    _checkBatteryExemption();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Refresh status when user returns from the system battery settings dialog
+    if (state == AppLifecycleState.resumed) _checkBatteryExemption();
+  }
+
+  Future<void> _checkBatteryExemption() async {
+    final status = await Permission.ignoreBatteryOptimizations.status;
+    if (mounted) setState(() => _batteryExempt = status.isGranted);
+  }
+
+  Future<void> _requestBatteryExemption() async {
+    await Permission.ignoreBatteryOptimizations.request();
+    await _checkBatteryExemption();
   }
 
   Future<void> _loadSettings() async {
@@ -305,6 +326,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _hostController.dispose();
     _portController.dispose();
     _usernameController.dispose();
@@ -570,6 +592,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               tooltip: 'Notify on every successful run — can be frequent if jobs run often',
             ),
             const SizedBox(height: 24),
+            _sectionHeader('Background Execution',
+                icon: Icons.battery_saver_rounded,
+                infoTitle: 'Background Execution',
+                infoBody:
+                    'Android can prevent scheduled backups from running overnight if the app '
+                    'is subject to battery optimization.\n\n'
+                    'Granting an exemption tells the OS to let this app wake up on schedule '
+                    'even while the screen is off. Without it, WorkManager tasks (your nightly '
+                    'backup jobs) may be silently skipped by the system or delayed by hours.\n\n'
+                    'This does not run any code in the background on its own — it only removes '
+                    'the restriction that prevents the already-scheduled jobs from firing.'),
+            _BatteryExemptionRow(
+              exempt: _batteryExempt,
+              onRequest: _requestBatteryExemption,
+            ),
+            const SizedBox(height: 24),
             _sectionHeader('App Backup',
                 icon: Icons.save_rounded,
                 infoTitle: 'App Backup',
@@ -753,6 +791,53 @@ class _ConnectionTestRow extends StatelessWidget {
             SizedBox(width: 4),
             Text('Failed', style: TextStyle(color: Colors.red)),
           ]),
+      ],
+    );
+  }
+}
+
+class _BatteryExemptionRow extends StatelessWidget {
+  final bool? exempt;
+  final VoidCallback onRequest;
+
+  const _BatteryExemptionRow({required this.exempt, required this.onRequest});
+
+  @override
+  Widget build(BuildContext context) {
+    final isExempt = exempt ?? false;
+    final unknown = exempt == null;
+    final color = isExempt ? Colors.green : Theme.of(context).colorScheme.error;
+
+    return Row(
+      children: [
+        Icon(
+          isExempt ? Icons.check_circle : (unknown ? Icons.help_outline : Icons.warning_amber_rounded),
+          size: 20,
+          color: unknown ? Theme.of(context).colorScheme.onSurfaceVariant : color,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            unknown
+                ? 'Checking…'
+                : isExempt
+                    ? 'Exempted — scheduled backups can run overnight'
+                    : 'Not exempted — overnight backups may be skipped',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: unknown ? null : color,
+                ),
+          ),
+        ),
+        if (!isExempt) ...[
+          const SizedBox(width: 8),
+          Tooltip(
+            message: 'Ask Android to stop restricting this app',
+            child: OutlinedButton(
+              onPressed: onRequest,
+              child: const Text('Fix'),
+            ),
+          ),
+        ],
       ],
     );
   }
