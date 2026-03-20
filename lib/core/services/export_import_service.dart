@@ -1,51 +1,51 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../database/app_database.dart';
+import 'saf_service.dart';
 
 class ExportImportService {
-  /// Returns the path to the live SQLite DB file on disk.
-  Future<String> _dbFilePath() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return p.join(dir.path, 'backup_of_record.db');
+  /// Builds the export zip and returns the raw bytes.
+  /// The caller is responsible for writing/saving them (e.g. via FilePicker.saveFile).
+  Future<Uint8List> buildExportZip(AppDatabase db) async {
+    final tmpDir = await getTemporaryDirectory();
+    final tmpDbPath = p.join(tmpDir.path, 'backup_export_tmp.sqlite');
+    final tmpFile = File(tmpDbPath);
+
+    if (await tmpFile.exists()) await tmpFile.delete();
+
+    try {
+      // VACUUM INTO creates a clean, WAL-flushed snapshot without needing
+      // to know where drift stored the live database file.
+      await db.customStatement("VACUUM INTO '$tmpDbPath'");
+
+      final dbBytes = await tmpFile.readAsBytes();
+
+      final metadata = jsonEncode({
+        'version': 1,
+        'exportedAt': DateTime.now().toIso8601String(),
+        'excludedSecrets': ['nasPassword'],
+      });
+      final metaBytes = utf8.encode(metadata);
+
+      final archive = Archive()
+        ..addFile(ArchiveFile('backup_of_record.sqlite', dbBytes.length, dbBytes))
+        ..addFile(ArchiveFile('metadata.json', metaBytes.length, metaBytes));
+
+      return Uint8List.fromList(ZipEncoder().encode(archive)!);
+    } finally {
+      if (await tmpFile.exists()) await tmpFile.delete();
+    }
   }
 
-  /// Exports the full database as a zip to [destinationDir].
-  ///
-  /// Returns the path of the written zip file.
-  Future<String> exportBackup(AppDatabase db, String destinationDir) async {
-    // Flush WAL so the DB file on disk is current.
-    await db.customStatement('PRAGMA wal_checkpoint(FULL)');
-
-    final dbPath = await _dbFilePath();
-    final dbBytes = await File(dbPath).readAsBytes();
-
-    final metadata = jsonEncode({
-      'version': 1,
-      'exportedAt': DateTime.now().toIso8601String(),
-      'excludedSecrets': ['nasPassword'],
-    });
-    final metaBytes = utf8.encode(metadata);
-
-    final archive = Archive()
-      ..addFile(ArchiveFile('backup_of_record.db', dbBytes.length, dbBytes))
-      ..addFile(ArchiveFile('metadata.json', metaBytes.length, metaBytes));
-
-    final zipBytes = ZipEncoder().encode(archive)!;
-
-    final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final filename = 'backup_of_record_$dateStr.zip';
-    final outputPath = p.join(destinationDir, filename);
-    await Directory(destinationDir).create(recursive: true);
-    await File(outputPath).writeAsBytes(zipBytes);
-
-    return outputPath;
-  }
+  /// Writes the export zip to the SAF folder URI the user previously picked.
+  Future<void> writeToSaf(String safUri, Uint8List zipBytes) =>
+      SafService.writeFile(safUri, 'backup_of_record_backup.zip', zipBytes);
 
   /// Imports a backup zip, fully replacing the existing database.
   ///
@@ -56,18 +56,17 @@ class ExportImportService {
     final archive = ZipDecoder().decodeBytes(zipBytes);
 
     final dbEntry = archive.files.firstWhere(
-      (f) => f.name.endsWith('.db'),
-      orElse: () => throw const FormatException('No .db file found in backup zip'),
+      (f) => f.name.endsWith('.sqlite') || f.name.endsWith('.db'),
+      orElse: () => throw const FormatException('No database file found in backup zip'),
     );
 
-    final dbPath = await _dbFilePath();
+    // drift_flutter default: getApplicationDocumentsDirectory() + name.sqlite
+    final docsDir = await getApplicationDocumentsDirectory();
+    final dbPath = p.join(docsDir.path, 'backup_of_record.sqlite');
 
-    // Close Drift before touching the file.
     await db.close();
-
     await File(dbPath).writeAsBytes(dbEntry.content as List<int>);
 
-    // Force full restart — cleanest way to reinitialise all state.
     exit(0);
   }
 }

@@ -1,10 +1,7 @@
-import 'dart:io';
-
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/database/app_database.dart';
@@ -12,6 +9,7 @@ import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/export_import_service.dart';
+import '../../../core/services/saf_service.dart';
 import '../../../core/services/secure_storage_service.dart';
 import '../../../core/services/webdav_service.dart';
 
@@ -75,7 +73,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool? _connectionResult; // null = not tested, true = ok, false = failed
   bool _testing = false;
 
-  String? _backupExportPath;
+  String? _backupExportPath; // SAF URI, persisted in DB
   bool _exporting = false;
   bool _importing = false;
   final _exportImportService = ExportImportService();
@@ -213,59 +211,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _pickExportDir() async {
-    final dir = await FilePicker.platform.getDirectoryPath();
-    if (dir == null || !mounted) return;
-
-    // On Android, file_picker via SAF can return internal app paths like
-    // /data/user/0/com.package/... that aren't actually writable via dart:io.
-    // Validate by attempting a test write; fall back to external storage if it fails.
-    String finalDir = dir;
-    try {
-      final testFile = File('$dir/.write_test');
-      await testFile.writeAsString('test');
-      await testFile.delete();
-    } catch (_) {
-      final ext = await getExternalStorageDirectory();
-      if (!mounted) return;
-      if (ext != null) {
-        finalDir = ext.path;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not write to selected folder. Using: $finalDir')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selected folder is not writable and no fallback available.')),
-        );
-        return;
-      }
-    }
-
-    setState(() => _backupExportPath = finalDir);
+    final uri = await SafService.pickFolder();
+    if (uri == null || !mounted) return;
+    setState(() => _backupExportPath = uri);
     final db = ref.read(databaseProvider);
     await db.settingsDao.upsertSettings(GlobalSettingsCompanion(
       id: const Value(1),
-      backupExportPath: Value(finalDir),
+      backupExportPath: Value(uri),
     ));
   }
 
   Future<void> _exportNow() async {
-    if (_backupExportPath == null) return;
-    final db = ref.read(databaseProvider);
-    final jobs = await db.jobsDao.getAllJobs();
-    if (jobs.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No jobs to back up yet.')),
-        );
-      }
+    if (_backupExportPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose an export folder first.')),
+      );
       return;
     }
+    final db = ref.read(databaseProvider);
     setState(() => _exporting = true);
     try {
-      final path = await _exportImportService.exportBackup(db, _backupExportPath!);
+      final bytes = await _exportImportService.buildExportZip(db);
+      await _exportImportService.writeToSaf(_backupExportPath!, bytes);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Backup saved: $path')),
+          const SnackBar(content: Text('Backup saved to selected folder.')),
         );
       }
     } catch (e) {
@@ -606,7 +576,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 infoBody:
                     'This backs up the app itself — your jobs, run history, and settings — '
                     'not the files on your NAS.\n\n'
-                    'Export Now saves a .zip file containing the SQLite database to the folder you choose. '
+                    'Choose a folder once — Export Now will always write '
+                    'backup_of_record_backup.zip there without prompting again. '
                     'Use this before uninstalling or switching phones.\n\n'
                     'Import Backup restores from a previously exported .zip, replacing all current data. '
                     'The app restarts immediately after a successful import.'),
@@ -614,7 +585,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    _backupExportPath ?? 'No export location set',
+                    _backupExportPath != null
+                        ? SafService.displayName(_backupExportPath!)
+                        : 'No export folder set',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: _backupExportPath == null
                               ? Theme.of(context).colorScheme.onSurfaceVariant
@@ -624,7 +597,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
                 Tooltip(
-                  message: 'Choose the folder where app backups (.zip) will be saved',
+                  message: 'Choose the folder where app backups will be saved',
                   child: IconButton(
                     icon: const Icon(Icons.folder_open_rounded),
                     onPressed: _pickExportDir,
@@ -639,9 +612,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Tooltip(
                     message: 'Export all jobs, run history and settings as a .zip file',
                     child: OutlinedButton.icon(
-                      onPressed: (_backupExportPath != null && !_exporting)
-                          ? _exportNow
-                          : null,
+                      onPressed: _exporting ? null : _exportNow,
                       icon: _exporting
                           ? const SizedBox(
                               width: 16,
