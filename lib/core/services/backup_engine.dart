@@ -79,6 +79,30 @@ class BackupEngine {
     if (_cancelled) throw const BackupCancelledException();
   }
 
+  /// Checks both the in-memory flag and the DB cancel flag.
+  /// Call between files — async but only hits DB once per file.
+  Future<void> _checkCancelledDb(int runId) async {
+    _checkCancelled();
+    if (await _db.runsDao.isCancelRequested(runId)) {
+      _cancelled = true;
+      throw const BackupCancelledException();
+    }
+  }
+
+  /// Writes current in-progress counts to the DB so the queue screen can
+  /// display live progress.
+  Future<void> _writeProgress(
+      int runId, _Stats stats, bool dryRun) =>
+      _db.runsDao.updateRun(JobRunsCompanion(
+        id: Value(runId),
+        status: Value(dryRun ? RunStatus.dryRun : RunStatus.running),
+        filesScanned: Value(stats.scanned),
+        filesUploaded: Value(stats.uploaded),
+        filesSkipped: Value(stats.skipped),
+        filesFailed: Value(stats.failed),
+        bytesTransferred: Value(stats.bytes),
+      ));
+
   // ── Entry point ─────────────────────────────────────────────────────────────
 
   Future<void> runJob(
@@ -137,11 +161,25 @@ class BackupEngine {
     }
 
     final startedAt = DateTime.now();
-    final runId = await _db.runsDao.insertRun(JobRunsCompanion(
-      jobId: Value(jobId),
-      startedAt: Value(startedAt),
-      status: Value(dryRun ? RunStatus.dryRun : RunStatus.running),
-    ));
+    // Pick up a queued placeholder pre-inserted by the UI, or create a new record.
+    final queuedRun = await _db.runsDao.getQueuedRunForJob(jobId);
+    final int runId;
+    if (queuedRun != null) {
+      runId = queuedRun.id;
+      await _db.runsDao.updateRun(JobRunsCompanion(
+        id: Value(runId),
+        startedAt: Value(startedAt),
+        status: Value(dryRun ? RunStatus.dryRun : RunStatus.running),
+        isDryRun: Value(dryRun),
+      ));
+    } else {
+      runId = await _db.runsDao.insertRun(JobRunsCompanion(
+        jobId: Value(jobId),
+        startedAt: Value(startedAt),
+        status: Value(dryRun ? RunStatus.dryRun : RunStatus.running),
+        isDryRun: Value(dryRun),
+      ));
+    }
 
     final stats = _Stats();
     RunStatus finalStatus = RunStatus.success;
@@ -179,10 +217,10 @@ class BackupEngine {
     final completedAt = DateTime.now();
     await _db.runsDao.updateRun(JobRunsCompanion(
       id: Value(runId),
-      jobId: Value(jobId),
-      startedAt: Value(startedAt),
       completedAt: Value(completedAt),
       status: Value(finalStatus),
+      isDryRun: Value(dryRun),
+      cancelRequested: const Value(false),
       filesScanned: Value(stats.scanned),
       filesUploaded: Value(stats.uploaded),
       filesSkipped: Value(stats.skipped),
@@ -266,7 +304,7 @@ class BackupEngine {
     int processed = 0;
 
     for (final file in files) {
-      _checkCancelled();
+      await _checkCancelledDb(runId);
 
       final relPath =
           p.relative(file.path, from: job.sourcePath).replaceAll('\\', '/');
@@ -376,6 +414,7 @@ class BackupEngine {
       }
 
       processed++;
+      await _writeProgress(runId, stats, dryRun);
     }
   }
 
@@ -476,6 +515,7 @@ class BackupEngine {
 
     await _log(runId, null, FileAction.uploaded, job.sourcePath);
     stats.uploaded++;
+    await _writeProgress(runId, stats, dryRun);
   }
 
   // ── Retention cleanup ───────────────────────────────────────────────────────

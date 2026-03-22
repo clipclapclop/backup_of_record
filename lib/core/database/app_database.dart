@@ -34,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -44,6 +44,18 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await m.addColumn(jobs, jobs.wifiOnly);
+      }
+      if (from < 4) {
+        await m.addColumn(jobRuns, jobRuns.isDryRun);
+        await m.addColumn(jobRuns, jobRuns.cancelRequested);
+      }
+      if (from < 5) {
+        await m.database.customStatement(
+          'ALTER TABLE global_settings ADD COLUMN default_job_hour INTEGER NOT NULL DEFAULT 2',
+        );
+        await m.database.customStatement(
+          'ALTER TABLE global_settings ADD COLUMN default_job_minute INTEGER NOT NULL DEFAULT 0',
+        );
       }
     },
   );

@@ -86,20 +86,33 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
   }
 
   Future<void> _runNow() async {
+    final db = ref.read(databaseProvider);
+    await db.runsDao.insertRun(JobRunsCompanion(
+      jobId: Value(widget.job.id),
+      startedAt: Value(DateTime.now()),
+      status: const Value(RunStatus.queued),
+      isDryRun: const Value(false),
+    ));
     await SchedulingService.runNow(widget.job.id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Job queued — will run shortly')),
+        const SnackBar(content: Text('Job queued — visible in the queue')),
       );
     }
   }
 
   Future<void> _dryRun() async {
+    final db = ref.read(databaseProvider);
+    await db.runsDao.insertRun(JobRunsCompanion(
+      jobId: Value(widget.job.id),
+      startedAt: Value(DateTime.now()),
+      status: const Value(RunStatus.queued),
+      isDryRun: const Value(true),
+    ));
     await SchedulingService.dryRun(widget.job.id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Dry run queued — check run history shortly')),
+        const SnackBar(content: Text('Dry run queued — visible in the queue')),
       );
     }
   }
@@ -516,9 +529,10 @@ class _RunTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: (run.status == RunStatus.running ||
-                run.filesUploaded > 0 ||
-                run.filesFailed > 0)
+        onTap: (run.status != RunStatus.queued &&
+                (run.status == RunStatus.running ||
+                    run.filesUploaded > 0 ||
+                    run.filesFailed > 0))
             ? () => context.push('/jobs/$jobId/runs/${run.id}/log')
             : null,
         child: IntrinsicHeight(
@@ -628,6 +642,7 @@ class _RunTile extends StatelessWidget {
   }
 
   (Color, String) _statusStyle(RunStatus status) => switch (status) {
+        RunStatus.queued => (Colors.blueGrey, 'Queued'),
         RunStatus.running => (Colors.blue, 'Running'),
         RunStatus.success => (Colors.green, 'Success'),
         RunStatus.partial => (Colors.orange, 'Partial'),
@@ -659,6 +674,7 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, label) = switch (status) {
+      RunStatus.queued => (Colors.blueGrey, 'Queued'),
       RunStatus.running => (Colors.blue, 'Running'),
       RunStatus.success => (Colors.green, 'Success'),
       RunStatus.partial => (Colors.orange, 'Partial'),

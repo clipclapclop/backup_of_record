@@ -16,3 +16,8 @@ final jobRunsProvider = StreamProvider.family<List<JobRun>, int>((ref, jobId) {
   final db = ref.watch(databaseProvider);
   return db.runsDao.watchRunsForJob(jobId);
 });
+
+final activeRunsProvider = StreamProvider<List<JobRun>>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.runsDao.watchAllActiveRuns();
+});

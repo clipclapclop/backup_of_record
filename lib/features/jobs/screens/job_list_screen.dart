@@ -24,19 +24,45 @@ class JobListScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          Tooltip(
-            message: 'Browse & restore files from NAS',
-            child: IconButton(
-              icon: const Icon(Icons.restore_rounded),
-              onPressed: () => context.go('/restore'),
-            ),
-          ),
-          Tooltip(
-            message: 'Settings',
-            child: IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              onPressed: () => context.push('/settings'),
-            ),
+          PopupMenuButton<String>(
+            tooltip: 'More options',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              switch (value) {
+                case 'queue':
+                  context.push('/queue');
+                case 'restore':
+                  context.go('/restore');
+                case 'settings':
+                  context.push('/settings');
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'queue',
+                child: ListTile(
+                  leading: Icon(Icons.playlist_play_rounded),
+                  title: Text('Queue'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'restore',
+                child: ListTile(
+                  leading: Icon(Icons.restore_rounded),
+                  title: Text('Restore'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'settings',
+                child: ListTile(
+                  leading: Icon(Icons.settings_outlined),
+                  title: Text('Settings'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),

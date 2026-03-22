@@ -28,4 +28,8 @@ class GlobalSettings extends Table {
 
   // Directory path where backup zips are saved (null = not set)
   TextColumn get backupExportPath => text().nullable()();
+
+  // Default run time for new jobs (24-hour components)
+  IntColumn get defaultJobHour => integer().withDefault(const Constant(2))();
+  IntColumn get defaultJobMinute => integer().withDefault(const Constant(0))();
 }

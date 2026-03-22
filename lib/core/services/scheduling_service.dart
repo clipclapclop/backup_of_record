@@ -56,6 +56,12 @@ class SchedulingService {
     );
   }
 
+  /// Cancels a pending one-off (Run Now) WorkManager task for [jobId].
+  static Future<void> cancelOneOff(int jobId) async {
+    await Workmanager().cancelByUniqueName(_oneOffName(jobId));
+    await Workmanager().cancelByUniqueName('${_oneOffName(jobId)}_dry');
+  }
+
   /// Registers a one-off dry-run task for [jobId].
   static Future<void> dryRun(int jobId) async {
     await Workmanager().registerOneOffTask(

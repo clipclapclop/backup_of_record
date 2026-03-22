@@ -134,6 +134,7 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
       setState(() {
         _comparisonMethod = settings.defaultComparisonMethod;
         _compressionType = settings.defaultCompressionType;
+        _dailyTime = TimeOfDay(hour: settings.defaultJobHour, minute: settings.defaultJobMinute);
       });
     }
   }

@@ -1179,6 +1179,36 @@ class $JobRunsTable extends JobRuns with TableInfo<$JobRunsTable, JobRun> {
         type: DriftSqlType.int,
         requiredDuringInsert: true,
       ).withConverter<RunStatus>($JobRunsTable.$converterstatus);
+  static const VerificationMeta _isDryRunMeta = const VerificationMeta(
+    'isDryRun',
+  );
+  @override
+  late final GeneratedColumn<bool> isDryRun = GeneratedColumn<bool>(
+    'is_dry_run',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_dry_run" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _cancelRequestedMeta = const VerificationMeta(
+    'cancelRequested',
+  );
+  @override
+  late final GeneratedColumn<bool> cancelRequested = GeneratedColumn<bool>(
+    'cancel_requested',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("cancel_requested" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _filesScannedMeta = const VerificationMeta(
     'filesScanned',
   );
@@ -1257,6 +1287,8 @@ class $JobRunsTable extends JobRuns with TableInfo<$JobRunsTable, JobRun> {
     startedAt,
     completedAt,
     status,
+    isDryRun,
+    cancelRequested,
     filesScanned,
     filesUploaded,
     filesSkipped,
@@ -1301,6 +1333,21 @@ class $JobRunsTable extends JobRuns with TableInfo<$JobRunsTable, JobRun> {
         completedAt.isAcceptableOrUnknown(
           data['completed_at']!,
           _completedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_dry_run')) {
+      context.handle(
+        _isDryRunMeta,
+        isDryRun.isAcceptableOrUnknown(data['is_dry_run']!, _isDryRunMeta),
+      );
+    }
+    if (data.containsKey('cancel_requested')) {
+      context.handle(
+        _cancelRequestedMeta,
+        cancelRequested.isAcceptableOrUnknown(
+          data['cancel_requested']!,
+          _cancelRequestedMeta,
         ),
       );
     }
@@ -1389,6 +1436,14 @@ class $JobRunsTable extends JobRuns with TableInfo<$JobRunsTable, JobRun> {
           data['${effectivePrefix}status'],
         )!,
       ),
+      isDryRun: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_dry_run'],
+      )!,
+      cancelRequested: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}cancel_requested'],
+      )!,
       filesScanned: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}files_scanned'],
@@ -1431,6 +1486,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
   final DateTime startedAt;
   final DateTime? completedAt;
   final RunStatus status;
+  final bool isDryRun;
+  final bool cancelRequested;
   final int filesScanned;
   final int filesUploaded;
   final int filesSkipped;
@@ -1443,6 +1500,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
     required this.startedAt,
     this.completedAt,
     required this.status,
+    required this.isDryRun,
+    required this.cancelRequested,
     required this.filesScanned,
     required this.filesUploaded,
     required this.filesSkipped,
@@ -1464,6 +1523,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
         $JobRunsTable.$converterstatus.toSql(status),
       );
     }
+    map['is_dry_run'] = Variable<bool>(isDryRun);
+    map['cancel_requested'] = Variable<bool>(cancelRequested);
     map['files_scanned'] = Variable<int>(filesScanned);
     map['files_uploaded'] = Variable<int>(filesUploaded);
     map['files_skipped'] = Variable<int>(filesSkipped);
@@ -1484,6 +1545,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
           ? const Value.absent()
           : Value(completedAt),
       status: Value(status),
+      isDryRun: Value(isDryRun),
+      cancelRequested: Value(cancelRequested),
       filesScanned: Value(filesScanned),
       filesUploaded: Value(filesUploaded),
       filesSkipped: Value(filesSkipped),
@@ -1508,6 +1571,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
       status: $JobRunsTable.$converterstatus.fromJson(
         serializer.fromJson<int>(json['status']),
       ),
+      isDryRun: serializer.fromJson<bool>(json['isDryRun']),
+      cancelRequested: serializer.fromJson<bool>(json['cancelRequested']),
       filesScanned: serializer.fromJson<int>(json['filesScanned']),
       filesUploaded: serializer.fromJson<int>(json['filesUploaded']),
       filesSkipped: serializer.fromJson<int>(json['filesSkipped']),
@@ -1527,6 +1592,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
       'status': serializer.toJson<int>(
         $JobRunsTable.$converterstatus.toJson(status),
       ),
+      'isDryRun': serializer.toJson<bool>(isDryRun),
+      'cancelRequested': serializer.toJson<bool>(cancelRequested),
       'filesScanned': serializer.toJson<int>(filesScanned),
       'filesUploaded': serializer.toJson<int>(filesUploaded),
       'filesSkipped': serializer.toJson<int>(filesSkipped),
@@ -1542,6 +1609,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
     DateTime? startedAt,
     Value<DateTime?> completedAt = const Value.absent(),
     RunStatus? status,
+    bool? isDryRun,
+    bool? cancelRequested,
     int? filesScanned,
     int? filesUploaded,
     int? filesSkipped,
@@ -1554,6 +1623,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
     startedAt: startedAt ?? this.startedAt,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
     status: status ?? this.status,
+    isDryRun: isDryRun ?? this.isDryRun,
+    cancelRequested: cancelRequested ?? this.cancelRequested,
     filesScanned: filesScanned ?? this.filesScanned,
     filesUploaded: filesUploaded ?? this.filesUploaded,
     filesSkipped: filesSkipped ?? this.filesSkipped,
@@ -1570,6 +1641,10 @@ class JobRun extends DataClass implements Insertable<JobRun> {
           ? data.completedAt.value
           : this.completedAt,
       status: data.status.present ? data.status.value : this.status,
+      isDryRun: data.isDryRun.present ? data.isDryRun.value : this.isDryRun,
+      cancelRequested: data.cancelRequested.present
+          ? data.cancelRequested.value
+          : this.cancelRequested,
       filesScanned: data.filesScanned.present
           ? data.filesScanned.value
           : this.filesScanned,
@@ -1599,6 +1674,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
           ..write('startedAt: $startedAt, ')
           ..write('completedAt: $completedAt, ')
           ..write('status: $status, ')
+          ..write('isDryRun: $isDryRun, ')
+          ..write('cancelRequested: $cancelRequested, ')
           ..write('filesScanned: $filesScanned, ')
           ..write('filesUploaded: $filesUploaded, ')
           ..write('filesSkipped: $filesSkipped, ')
@@ -1616,6 +1693,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
     startedAt,
     completedAt,
     status,
+    isDryRun,
+    cancelRequested,
     filesScanned,
     filesUploaded,
     filesSkipped,
@@ -1632,6 +1711,8 @@ class JobRun extends DataClass implements Insertable<JobRun> {
           other.startedAt == this.startedAt &&
           other.completedAt == this.completedAt &&
           other.status == this.status &&
+          other.isDryRun == this.isDryRun &&
+          other.cancelRequested == this.cancelRequested &&
           other.filesScanned == this.filesScanned &&
           other.filesUploaded == this.filesUploaded &&
           other.filesSkipped == this.filesSkipped &&
@@ -1646,6 +1727,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
   final Value<DateTime> startedAt;
   final Value<DateTime?> completedAt;
   final Value<RunStatus> status;
+  final Value<bool> isDryRun;
+  final Value<bool> cancelRequested;
   final Value<int> filesScanned;
   final Value<int> filesUploaded;
   final Value<int> filesSkipped;
@@ -1658,6 +1741,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
     this.startedAt = const Value.absent(),
     this.completedAt = const Value.absent(),
     this.status = const Value.absent(),
+    this.isDryRun = const Value.absent(),
+    this.cancelRequested = const Value.absent(),
     this.filesScanned = const Value.absent(),
     this.filesUploaded = const Value.absent(),
     this.filesSkipped = const Value.absent(),
@@ -1671,6 +1756,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
     required DateTime startedAt,
     this.completedAt = const Value.absent(),
     required RunStatus status,
+    this.isDryRun = const Value.absent(),
+    this.cancelRequested = const Value.absent(),
     this.filesScanned = const Value.absent(),
     this.filesUploaded = const Value.absent(),
     this.filesSkipped = const Value.absent(),
@@ -1686,6 +1773,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
     Expression<DateTime>? startedAt,
     Expression<DateTime>? completedAt,
     Expression<int>? status,
+    Expression<bool>? isDryRun,
+    Expression<bool>? cancelRequested,
     Expression<int>? filesScanned,
     Expression<int>? filesUploaded,
     Expression<int>? filesSkipped,
@@ -1699,6 +1788,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
       if (startedAt != null) 'started_at': startedAt,
       if (completedAt != null) 'completed_at': completedAt,
       if (status != null) 'status': status,
+      if (isDryRun != null) 'is_dry_run': isDryRun,
+      if (cancelRequested != null) 'cancel_requested': cancelRequested,
       if (filesScanned != null) 'files_scanned': filesScanned,
       if (filesUploaded != null) 'files_uploaded': filesUploaded,
       if (filesSkipped != null) 'files_skipped': filesSkipped,
@@ -1714,6 +1805,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
     Value<DateTime>? startedAt,
     Value<DateTime?>? completedAt,
     Value<RunStatus>? status,
+    Value<bool>? isDryRun,
+    Value<bool>? cancelRequested,
     Value<int>? filesScanned,
     Value<int>? filesUploaded,
     Value<int>? filesSkipped,
@@ -1727,6 +1820,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,
       status: status ?? this.status,
+      isDryRun: isDryRun ?? this.isDryRun,
+      cancelRequested: cancelRequested ?? this.cancelRequested,
       filesScanned: filesScanned ?? this.filesScanned,
       filesUploaded: filesUploaded ?? this.filesUploaded,
       filesSkipped: filesSkipped ?? this.filesSkipped,
@@ -1755,6 +1850,12 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
       map['status'] = Variable<int>(
         $JobRunsTable.$converterstatus.toSql(status.value),
       );
+    }
+    if (isDryRun.present) {
+      map['is_dry_run'] = Variable<bool>(isDryRun.value);
+    }
+    if (cancelRequested.present) {
+      map['cancel_requested'] = Variable<bool>(cancelRequested.value);
     }
     if (filesScanned.present) {
       map['files_scanned'] = Variable<int>(filesScanned.value);
@@ -1785,6 +1886,8 @@ class JobRunsCompanion extends UpdateCompanion<JobRun> {
           ..write('startedAt: $startedAt, ')
           ..write('completedAt: $completedAt, ')
           ..write('status: $status, ')
+          ..write('isDryRun: $isDryRun, ')
+          ..write('cancelRequested: $cancelRequested, ')
           ..write('filesScanned: $filesScanned, ')
           ..write('filesUploaded: $filesUploaded, ')
           ..write('filesSkipped: $filesSkipped, ')
@@ -3496,6 +3599,30 @@ class $GlobalSettingsTable extends GlobalSettings
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _defaultJobHourMeta = const VerificationMeta(
+    'defaultJobHour',
+  );
+  @override
+  late final GeneratedColumn<int> defaultJobHour = GeneratedColumn<int>(
+    'default_job_hour',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(2),
+  );
+  static const VerificationMeta _defaultJobMinuteMeta = const VerificationMeta(
+    'defaultJobMinute',
+  );
+  @override
+  late final GeneratedColumn<int> defaultJobMinute = GeneratedColumn<int>(
+    'default_job_minute',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3508,6 +3635,8 @@ class $GlobalSettingsTable extends GlobalSettings
     spaceWarnThresholdGb,
     notificationFlags,
     backupExportPath,
+    defaultJobHour,
+    defaultJobMinute,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3578,6 +3707,24 @@ class $GlobalSettingsTable extends GlobalSettings
         ),
       );
     }
+    if (data.containsKey('default_job_hour')) {
+      context.handle(
+        _defaultJobHourMeta,
+        defaultJobHour.isAcceptableOrUnknown(
+          data['default_job_hour']!,
+          _defaultJobHourMeta,
+        ),
+      );
+    }
+    if (data.containsKey('default_job_minute')) {
+      context.handle(
+        _defaultJobMinuteMeta,
+        defaultJobMinute.isAcceptableOrUnknown(
+          data['default_job_minute']!,
+          _defaultJobMinuteMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3635,6 +3782,14 @@ class $GlobalSettingsTable extends GlobalSettings
         DriftSqlType.string,
         data['${effectivePrefix}backup_export_path'],
       ),
+      defaultJobHour: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}default_job_hour'],
+      )!,
+      defaultJobMinute: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}default_job_minute'],
+      )!,
     );
   }
 
@@ -3663,6 +3818,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
   final int spaceWarnThresholdGb;
   final int notificationFlags;
   final String? backupExportPath;
+  final int defaultJobHour;
+  final int defaultJobMinute;
   const GlobalSetting({
     required this.id,
     required this.nasHost,
@@ -3674,6 +3831,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     required this.spaceWarnThresholdGb,
     required this.notificationFlags,
     this.backupExportPath,
+    required this.defaultJobHour,
+    required this.defaultJobMinute,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3702,6 +3861,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     if (!nullToAbsent || backupExportPath != null) {
       map['backup_export_path'] = Variable<String>(backupExportPath);
     }
+    map['default_job_hour'] = Variable<int>(defaultJobHour);
+    map['default_job_minute'] = Variable<int>(defaultJobMinute);
     return map;
   }
 
@@ -3719,6 +3880,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       backupExportPath: backupExportPath == null && nullToAbsent
           ? const Value.absent()
           : Value(backupExportPath),
+      defaultJobHour: Value(defaultJobHour),
+      defaultJobMinute: Value(defaultJobMinute),
     );
   }
 
@@ -3744,6 +3907,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       ),
       notificationFlags: serializer.fromJson<int>(json['notificationFlags']),
       backupExportPath: serializer.fromJson<String?>(json['backupExportPath']),
+      defaultJobHour: serializer.fromJson<int>(json['defaultJobHour']),
+      defaultJobMinute: serializer.fromJson<int>(json['defaultJobMinute']),
     );
   }
   @override
@@ -3768,6 +3933,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       'spaceWarnThresholdGb': serializer.toJson<int>(spaceWarnThresholdGb),
       'notificationFlags': serializer.toJson<int>(notificationFlags),
       'backupExportPath': serializer.toJson<String?>(backupExportPath),
+      'defaultJobHour': serializer.toJson<int>(defaultJobHour),
+      'defaultJobMinute': serializer.toJson<int>(defaultJobMinute),
     };
   }
 
@@ -3782,6 +3949,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     int? spaceWarnThresholdGb,
     int? notificationFlags,
     Value<String?> backupExportPath = const Value.absent(),
+    int? defaultJobHour,
+    int? defaultJobMinute,
   }) => GlobalSetting(
     id: id ?? this.id,
     nasHost: nasHost ?? this.nasHost,
@@ -3797,6 +3966,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     backupExportPath: backupExportPath.present
         ? backupExportPath.value
         : this.backupExportPath,
+    defaultJobHour: defaultJobHour ?? this.defaultJobHour,
+    defaultJobMinute: defaultJobMinute ?? this.defaultJobMinute,
   );
   GlobalSetting copyWithCompanion(GlobalSettingsCompanion data) {
     return GlobalSetting(
@@ -3822,6 +3993,12 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       backupExportPath: data.backupExportPath.present
           ? data.backupExportPath.value
           : this.backupExportPath,
+      defaultJobHour: data.defaultJobHour.present
+          ? data.defaultJobHour.value
+          : this.defaultJobHour,
+      defaultJobMinute: data.defaultJobMinute.present
+          ? data.defaultJobMinute.value
+          : this.defaultJobMinute,
     );
   }
 
@@ -3837,7 +4014,9 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
           ..write('defaultCompressionType: $defaultCompressionType, ')
           ..write('spaceWarnThresholdGb: $spaceWarnThresholdGb, ')
           ..write('notificationFlags: $notificationFlags, ')
-          ..write('backupExportPath: $backupExportPath')
+          ..write('backupExportPath: $backupExportPath, ')
+          ..write('defaultJobHour: $defaultJobHour, ')
+          ..write('defaultJobMinute: $defaultJobMinute')
           ..write(')'))
         .toString();
   }
@@ -3854,6 +4033,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     spaceWarnThresholdGb,
     notificationFlags,
     backupExportPath,
+    defaultJobHour,
+    defaultJobMinute,
   );
   @override
   bool operator ==(Object other) =>
@@ -3868,7 +4049,9 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
           other.defaultCompressionType == this.defaultCompressionType &&
           other.spaceWarnThresholdGb == this.spaceWarnThresholdGb &&
           other.notificationFlags == this.notificationFlags &&
-          other.backupExportPath == this.backupExportPath);
+          other.backupExportPath == this.backupExportPath &&
+          other.defaultJobHour == this.defaultJobHour &&
+          other.defaultJobMinute == this.defaultJobMinute);
 }
 
 class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
@@ -3882,6 +4065,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
   final Value<int> spaceWarnThresholdGb;
   final Value<int> notificationFlags;
   final Value<String?> backupExportPath;
+  final Value<int> defaultJobHour;
+  final Value<int> defaultJobMinute;
   const GlobalSettingsCompanion({
     this.id = const Value.absent(),
     this.nasHost = const Value.absent(),
@@ -3893,6 +4078,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     this.spaceWarnThresholdGb = const Value.absent(),
     this.notificationFlags = const Value.absent(),
     this.backupExportPath = const Value.absent(),
+    this.defaultJobHour = const Value.absent(),
+    this.defaultJobMinute = const Value.absent(),
   });
   GlobalSettingsCompanion.insert({
     this.id = const Value.absent(),
@@ -3905,6 +4092,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     this.spaceWarnThresholdGb = const Value.absent(),
     this.notificationFlags = const Value.absent(),
     this.backupExportPath = const Value.absent(),
+    this.defaultJobHour = const Value.absent(),
+    this.defaultJobMinute = const Value.absent(),
   });
   static Insertable<GlobalSetting> custom({
     Expression<int>? id,
@@ -3917,6 +4106,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     Expression<int>? spaceWarnThresholdGb,
     Expression<int>? notificationFlags,
     Expression<String>? backupExportPath,
+    Expression<int>? defaultJobHour,
+    Expression<int>? defaultJobMinute,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3932,6 +4123,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
         'space_warn_threshold_gb': spaceWarnThresholdGb,
       if (notificationFlags != null) 'notification_flags': notificationFlags,
       if (backupExportPath != null) 'backup_export_path': backupExportPath,
+      if (defaultJobHour != null) 'default_job_hour': defaultJobHour,
+      if (defaultJobMinute != null) 'default_job_minute': defaultJobMinute,
     });
   }
 
@@ -3946,6 +4139,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     Value<int>? spaceWarnThresholdGb,
     Value<int>? notificationFlags,
     Value<String?>? backupExportPath,
+    Value<int>? defaultJobHour,
+    Value<int>? defaultJobMinute,
   }) {
     return GlobalSettingsCompanion(
       id: id ?? this.id,
@@ -3960,6 +4155,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
       spaceWarnThresholdGb: spaceWarnThresholdGb ?? this.spaceWarnThresholdGb,
       notificationFlags: notificationFlags ?? this.notificationFlags,
       backupExportPath: backupExportPath ?? this.backupExportPath,
+      defaultJobHour: defaultJobHour ?? this.defaultJobHour,
+      defaultJobMinute: defaultJobMinute ?? this.defaultJobMinute,
     );
   }
 
@@ -4006,6 +4203,12 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     if (backupExportPath.present) {
       map['backup_export_path'] = Variable<String>(backupExportPath.value);
     }
+    if (defaultJobHour.present) {
+      map['default_job_hour'] = Variable<int>(defaultJobHour.value);
+    }
+    if (defaultJobMinute.present) {
+      map['default_job_minute'] = Variable<int>(defaultJobMinute.value);
+    }
     return map;
   }
 
@@ -4021,7 +4224,9 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
           ..write('defaultCompressionType: $defaultCompressionType, ')
           ..write('spaceWarnThresholdGb: $spaceWarnThresholdGb, ')
           ..write('notificationFlags: $notificationFlags, ')
-          ..write('backupExportPath: $backupExportPath')
+          ..write('backupExportPath: $backupExportPath, ')
+          ..write('defaultJobHour: $defaultJobHour, ')
+          ..write('defaultJobMinute: $defaultJobMinute')
           ..write(')'))
         .toString();
   }
@@ -4840,6 +5045,8 @@ typedef $$JobRunsTableCreateCompanionBuilder =
       required DateTime startedAt,
       Value<DateTime?> completedAt,
       required RunStatus status,
+      Value<bool> isDryRun,
+      Value<bool> cancelRequested,
       Value<int> filesScanned,
       Value<int> filesUploaded,
       Value<int> filesSkipped,
@@ -4854,6 +5061,8 @@ typedef $$JobRunsTableUpdateCompanionBuilder =
       Value<DateTime> startedAt,
       Value<DateTime?> completedAt,
       Value<RunStatus> status,
+      Value<bool> isDryRun,
+      Value<bool> cancelRequested,
       Value<int> filesScanned,
       Value<int> filesUploaded,
       Value<int> filesSkipped,
@@ -4931,6 +5140,16 @@ class $$JobRunsTableFilterComposer
         column: $table.status,
         builder: (column) => ColumnWithTypeConverterFilters(column),
       );
+
+  ColumnFilters<bool> get isDryRun => $composableBuilder(
+    column: $table.isDryRun,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get cancelRequested => $composableBuilder(
+    column: $table.cancelRequested,
+    builder: (column) => ColumnFilters(column),
+  );
 
   ColumnFilters<int> get filesScanned => $composableBuilder(
     column: $table.filesScanned,
@@ -5040,6 +5259,16 @@ class $$JobRunsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isDryRun => $composableBuilder(
+    column: $table.isDryRun,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get cancelRequested => $composableBuilder(
+    column: $table.cancelRequested,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get filesScanned => $composableBuilder(
     column: $table.filesScanned,
     builder: (column) => ColumnOrderings(column),
@@ -5116,6 +5345,14 @@ class $$JobRunsTableAnnotationComposer
 
   GeneratedColumnWithTypeConverter<RunStatus, int> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDryRun =>
+      $composableBuilder(column: $table.isDryRun, builder: (column) => column);
+
+  GeneratedColumn<bool> get cancelRequested => $composableBuilder(
+    column: $table.cancelRequested,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get filesScanned => $composableBuilder(
     column: $table.filesScanned,
@@ -5229,6 +5466,8 @@ class $$JobRunsTableTableManager
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
                 Value<RunStatus> status = const Value.absent(),
+                Value<bool> isDryRun = const Value.absent(),
+                Value<bool> cancelRequested = const Value.absent(),
                 Value<int> filesScanned = const Value.absent(),
                 Value<int> filesUploaded = const Value.absent(),
                 Value<int> filesSkipped = const Value.absent(),
@@ -5241,6 +5480,8 @@ class $$JobRunsTableTableManager
                 startedAt: startedAt,
                 completedAt: completedAt,
                 status: status,
+                isDryRun: isDryRun,
+                cancelRequested: cancelRequested,
                 filesScanned: filesScanned,
                 filesUploaded: filesUploaded,
                 filesSkipped: filesSkipped,
@@ -5255,6 +5496,8 @@ class $$JobRunsTableTableManager
                 required DateTime startedAt,
                 Value<DateTime?> completedAt = const Value.absent(),
                 required RunStatus status,
+                Value<bool> isDryRun = const Value.absent(),
+                Value<bool> cancelRequested = const Value.absent(),
                 Value<int> filesScanned = const Value.absent(),
                 Value<int> filesUploaded = const Value.absent(),
                 Value<int> filesSkipped = const Value.absent(),
@@ -5267,6 +5510,8 @@ class $$JobRunsTableTableManager
                 startedAt: startedAt,
                 completedAt: completedAt,
                 status: status,
+                isDryRun: isDryRun,
+                cancelRequested: cancelRequested,
                 filesScanned: filesScanned,
                 filesUploaded: filesUploaded,
                 filesSkipped: filesSkipped,
@@ -6699,6 +6944,8 @@ typedef $$GlobalSettingsTableCreateCompanionBuilder =
       Value<int> spaceWarnThresholdGb,
       Value<int> notificationFlags,
       Value<String?> backupExportPath,
+      Value<int> defaultJobHour,
+      Value<int> defaultJobMinute,
     });
 typedef $$GlobalSettingsTableUpdateCompanionBuilder =
     GlobalSettingsCompanion Function({
@@ -6712,6 +6959,8 @@ typedef $$GlobalSettingsTableUpdateCompanionBuilder =
       Value<int> spaceWarnThresholdGb,
       Value<int> notificationFlags,
       Value<String?> backupExportPath,
+      Value<int> defaultJobHour,
+      Value<int> defaultJobMinute,
     });
 
 class $$GlobalSettingsTableFilterComposer
@@ -6774,6 +7023,16 @@ class $$GlobalSettingsTableFilterComposer
     column: $table.backupExportPath,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<int> get defaultJobHour => $composableBuilder(
+    column: $table.defaultJobHour,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get defaultJobMinute => $composableBuilder(
+    column: $table.defaultJobMinute,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$GlobalSettingsTableOrderingComposer
@@ -6834,6 +7093,16 @@ class $$GlobalSettingsTableOrderingComposer
     column: $table.backupExportPath,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get defaultJobHour => $composableBuilder(
+    column: $table.defaultJobHour,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get defaultJobMinute => $composableBuilder(
+    column: $table.defaultJobMinute,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$GlobalSettingsTableAnnotationComposer
@@ -6888,6 +7157,16 @@ class $$GlobalSettingsTableAnnotationComposer
     column: $table.backupExportPath,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get defaultJobHour => $composableBuilder(
+    column: $table.defaultJobHour,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get defaultJobMinute => $composableBuilder(
+    column: $table.defaultJobMinute,
+    builder: (column) => column,
+  );
 }
 
 class $$GlobalSettingsTableTableManager
@@ -6935,6 +7214,8 @@ class $$GlobalSettingsTableTableManager
                 Value<int> spaceWarnThresholdGb = const Value.absent(),
                 Value<int> notificationFlags = const Value.absent(),
                 Value<String?> backupExportPath = const Value.absent(),
+                Value<int> defaultJobHour = const Value.absent(),
+                Value<int> defaultJobMinute = const Value.absent(),
               }) => GlobalSettingsCompanion(
                 id: id,
                 nasHost: nasHost,
@@ -6946,6 +7227,8 @@ class $$GlobalSettingsTableTableManager
                 spaceWarnThresholdGb: spaceWarnThresholdGb,
                 notificationFlags: notificationFlags,
                 backupExportPath: backupExportPath,
+                defaultJobHour: defaultJobHour,
+                defaultJobMinute: defaultJobMinute,
               ),
           createCompanionCallback:
               ({
@@ -6961,6 +7244,8 @@ class $$GlobalSettingsTableTableManager
                 Value<int> spaceWarnThresholdGb = const Value.absent(),
                 Value<int> notificationFlags = const Value.absent(),
                 Value<String?> backupExportPath = const Value.absent(),
+                Value<int> defaultJobHour = const Value.absent(),
+                Value<int> defaultJobMinute = const Value.absent(),
               }) => GlobalSettingsCompanion.insert(
                 id: id,
                 nasHost: nasHost,
@@ -6972,6 +7257,8 @@ class $$GlobalSettingsTableTableManager
                 spaceWarnThresholdGb: spaceWarnThresholdGb,
                 notificationFlags: notificationFlags,
                 backupExportPath: backupExportPath,
+                defaultJobHour: defaultJobHour,
+                defaultJobMinute: defaultJobMinute,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

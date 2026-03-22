@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'features/jobs/screens/job_list_screen.dart';
 import 'features/jobs/screens/job_detail_screen.dart';
 import 'features/jobs/screens/job_create_screen.dart' show JobCreateScreen, JobEditScreenLoader;
+import 'features/queue/screens/queue_screen.dart';
 import 'features/settings/screens/settings_screen.dart';
 import 'features/logs/screens/log_screen.dart';
 import 'features/restore/screens/restore_screen.dart';
@@ -36,6 +37,10 @@ final _router = GoRouter(
         jobId: int.parse(state.pathParameters['jobId']!),
         runId: int.parse(state.pathParameters['runId']!),
       ),
+    ),
+    GoRoute(
+      path: '/queue',
+      builder: (_, _) => const QueueScreen(),
     ),
     GoRoute(
       path: '/settings',

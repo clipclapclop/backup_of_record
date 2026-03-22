@@ -47,6 +47,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   int _notificationFlags = 0xFF;
   ComparisonMethod _defaultComparison = ComparisonMethod.metadata;
   CompressionType _defaultCompression = CompressionType.none;
+  TimeOfDay _defaultJobTime = const TimeOfDay(hour: 2, minute: 0);
 
   // Snapshot of values at load time — used to detect unsaved changes
   String _initialHost = '';
@@ -58,6 +59,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   int _initialNotificationFlags = 0xFF;
   ComparisonMethod _initialComparison = ComparisonMethod.metadata;
   CompressionType _initialCompression = CompressionType.none;
+  TimeOfDay _initialDefaultJobTime = const TimeOfDay(hour: 2, minute: 0);
 
   bool get _isDirty =>
       _hostController.text != _initialHost ||
@@ -68,7 +70,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       _useHttps != _initialUseHttps ||
       _notificationFlags != _initialNotificationFlags ||
       _defaultComparison != _initialComparison ||
-      _defaultCompression != _initialCompression;
+      _defaultCompression != _initialCompression ||
+      _defaultJobTime != _initialDefaultJobTime;
 
   bool _loading = true;
   bool _saving = false;
@@ -121,6 +124,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           _notificationFlags = settings.notificationFlags;
           _defaultComparison = settings.defaultComparisonMethod;
           _defaultCompression = settings.defaultCompressionType;
+          _defaultJobTime = TimeOfDay(hour: settings.defaultJobHour, minute: settings.defaultJobMinute);
           _backupExportPath = settings.backupExportPath;
         } else {
           _portController.text = '5006';
@@ -138,6 +142,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         _initialNotificationFlags = _notificationFlags;
         _initialComparison = _defaultComparison;
         _initialCompression = _defaultCompression;
+        _initialDefaultJobTime = _defaultJobTime;
       });
     }
   }
@@ -156,6 +161,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         nasUsername: Value(_usernameController.text.trim()),
         defaultComparisonMethod: Value(_defaultComparison),
         defaultCompressionType: Value(_defaultCompression),
+        defaultJobHour: Value(_defaultJobTime.hour),
+        defaultJobMinute: Value(_defaultJobTime.minute),
         spaceWarnThresholdGb: Value(int.tryParse(_spaceThresholdController.text) ?? 10),
         notificationFlags: Value(_notificationFlags),
       ));
@@ -317,6 +324,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         );
       }
     }
+  }
+
+  String _format12h(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $period';
   }
 
   void _toggleFlag(int flag) =>
@@ -521,6 +535,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 DropdownMenuItem(value: CompressionType.zip, child: Text('Zip')),
               ],
               onChanged: (v) => setState(() => _defaultCompression = v!),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Default run time for new jobs'),
+              subtitle: const Text('Used as the initial time when creating a new job'),
+              trailing: TextButton(
+                onPressed: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _defaultJobTime,
+                    builder: (ctx, child) => MediaQuery(
+                      data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: false),
+                      child: child!,
+                    ),
+                  );
+                  if (picked != null) setState(() => _defaultJobTime = picked);
+                },
+                child: Text(_format12h(_defaultJobTime)),
+              ),
             ),
             const SizedBox(height: 24),
             _sectionHeader('Storage Warning',

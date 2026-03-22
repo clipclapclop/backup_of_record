@@ -15,6 +15,8 @@ void callbackDispatcher() {
     final jobId = inputData?['jobId'] as int?;
     if (jobId == null) return false;
 
+    final dryRun = inputData?['dryRun'] as bool? ?? false;
+
     final db = AppDatabase();
     final notif = NotificationService();
 
@@ -25,7 +27,7 @@ void callbackDispatcher() {
         storage: SecureStorageService(),
         notif: notif,
       );
-      await engine.runJob(jobId);
+      await engine.runJob(jobId, dryRun: dryRun);
       return true;
     } catch (_) {
       return false;
