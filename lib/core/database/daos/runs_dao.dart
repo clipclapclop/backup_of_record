@@ -39,11 +39,14 @@ class RunsDao extends DatabaseAccessor<AppDatabase> with _$RunsDaoMixin {
           .getSingleOrNull();
 
   /// Returns a pre-inserted queued placeholder for a job, if one exists.
+  /// Uses limit(1) to avoid a StateError when duplicate queued rows exist.
   Future<JobRun?> getQueuedRunForJob(int jobId) =>
       (select(jobRuns)
             ..where((r) =>
                 r.jobId.equals(jobId) &
-                r.status.equals(RunStatus.queued.index)))
+                r.status.equals(RunStatus.queued.index))
+            ..orderBy([(r) => OrderingTerm.asc(r.startedAt)])
+            ..limit(1))
           .getSingleOrNull();
 
   /// Sets cancelRequested = true on a run so the engine can pick it up.

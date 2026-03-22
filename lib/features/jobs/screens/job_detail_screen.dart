@@ -87,12 +87,17 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
 
   Future<void> _runNow() async {
     final db = ref.read(databaseProvider);
-    await db.runsDao.insertRun(JobRunsCompanion(
-      jobId: Value(widget.job.id),
-      startedAt: Value(DateTime.now()),
-      status: const Value(RunStatus.queued),
-      isDryRun: const Value(false),
-    ));
+    // Reuse any existing queued row to avoid duplicate queued runs, which
+    // would cause getQueuedRunForJob to see >1 row and throw StateError.
+    final existing = await db.runsDao.getQueuedRunForJob(widget.job.id);
+    if (existing == null) {
+      await db.runsDao.insertRun(JobRunsCompanion(
+        jobId: Value(widget.job.id),
+        startedAt: Value(DateTime.now()),
+        status: const Value(RunStatus.queued),
+        isDryRun: const Value(false),
+      ));
+    }
     await SchedulingService.runNow(widget.job.id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -103,12 +108,15 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
 
   Future<void> _dryRun() async {
     final db = ref.read(databaseProvider);
-    await db.runsDao.insertRun(JobRunsCompanion(
-      jobId: Value(widget.job.id),
-      startedAt: Value(DateTime.now()),
-      status: const Value(RunStatus.queued),
-      isDryRun: const Value(true),
-    ));
+    final existing = await db.runsDao.getQueuedRunForJob(widget.job.id);
+    if (existing == null) {
+      await db.runsDao.insertRun(JobRunsCompanion(
+        jobId: Value(widget.job.id),
+        startedAt: Value(DateTime.now()),
+        status: const Value(RunStatus.queued),
+        isDryRun: const Value(true),
+      ));
+    }
     await SchedulingService.dryRun(widget.job.id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -480,11 +488,21 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
 
   String _scheduleLabel(Job job) => switch (job.scheduleType) {
         ScheduleType.manual => 'Manual only',
-        ScheduleType.daily => 'Daily at ${job.scheduleConfig}',
+        ScheduleType.daily => 'Daily at ${_format12h(job.scheduleConfig ?? '')}',
         ScheduleType.weekly => 'Weekly',
         ScheduleType.onChange =>
           'On change (every ${job.scheduleConfig} min)',
       };
+
+  String _format12h(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return hhmm;
+    final hour = int.tryParse(parts[0]) ?? 0;
+    final minute = parts[1];
+    final period = hour < 12 ? 'AM' : 'PM';
+    final h = hour % 12 == 0 ? 12 : hour % 12;
+    return '$h:$minute $period';
+  }
 
   String _strategyLabel(BackupStrategy s) => switch (s) {
         BackupStrategy.incremental => 'Incremental',
