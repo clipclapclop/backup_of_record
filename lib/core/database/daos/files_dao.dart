@@ -18,11 +18,18 @@ class FilesDao extends DatabaseAccessor<AppDatabase> with _$FilesDaoMixin {
   Future<FileRecord?> getFileRecord(int jobId, String relativePath) =>
       (select(fileRecords)
             ..where((f) =>
-                f.jobId.equals(jobId) & f.relativePath.equals(relativePath)))
+                f.jobId.equals(jobId) & f.relativePath.equals(relativePath))
+            ..limit(1))
           .getSingleOrNull();
 
   Future<int> upsertFileRecord(FileRecordsCompanion entry) =>
-      into(fileRecords).insertOnConflictUpdate(entry);
+      into(fileRecords).insert(
+        entry,
+        onConflict: DoUpdate(
+          (old) => entry,
+          target: [fileRecords.jobId, fileRecords.relativePath],
+        ),
+      );
 
   Future<void> deleteFileRecordsForJob(int jobId) =>
       (delete(fileRecords)..where((f) => f.jobId.equals(jobId))).go();
