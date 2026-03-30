@@ -6,6 +6,7 @@ enum FileStatus { ok, failed, skipped, locked }
 /// One row per file tracked by a job.
 /// For Type A: relative_path is relative to the source folder.
 /// For Type B: relative_path is the filename; nas_path includes the timestamp suffix.
+@DataClassName('FileRecord')
 class FileRecords extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get jobId => integer().references(Jobs, #id)();
@@ -24,4 +25,9 @@ class FileRecords extends Table {
 
   DateTimeColumn get lastBackedUpAt => dateTime().nullable()();
   IntColumn get lastStatus => intEnum<FileStatus>()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+        {jobId, relativePath},
+      ];
 }

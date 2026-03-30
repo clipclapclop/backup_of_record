@@ -34,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,6 +56,22 @@ class AppDatabase extends _$AppDatabase {
         await m.database.customStatement(
           'ALTER TABLE global_settings ADD COLUMN default_job_minute INTEGER NOT NULL DEFAULT 0',
         );
+      }
+      if (from < 6) {
+        // Remove duplicate file_records rows — keep only the most recently
+        // backed-up row for each (job_id, relative_path) pair.
+        await m.database.customStatement('''
+          DELETE FROM file_records
+          WHERE id NOT IN (
+            SELECT MAX(id) FROM file_records
+            GROUP BY job_id, relative_path
+          )
+        ''');
+        // Add unique index so insertOnConflictUpdate targets (job_id, relative_path)
+        await m.database.customStatement('''
+          CREATE UNIQUE INDEX file_records_job_path
+          ON file_records (job_id, relative_path)
+        ''');
       }
     },
   );
