@@ -4,11 +4,40 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/jobs_provider.dart';
 import '../widgets/job_card.dart';
 
-class JobListScreen extends ConsumerWidget {
+class JobListScreen extends ConsumerStatefulWidget {
   const JobListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<JobListScreen> createState() => _JobListScreenState();
+}
+
+class _JobListScreenState extends ConsumerState<JobListScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When the app returns to foreground, invalidate the jobs provider so
+    // Drift re-reads from SQLite.  Background WorkManager tasks write via
+    // their own DB instance, so Drift's in-process stream notifications
+    // are never fired for those writes.
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(jobsProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final jobs = ref.watch(jobsProvider);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;

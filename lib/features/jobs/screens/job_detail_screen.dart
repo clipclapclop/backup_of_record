@@ -9,6 +9,7 @@ import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/database/tables/job_runs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/jobs_provider.dart';
+import '../../../core/services/foreground_runner.dart';
 import '../../../core/services/scheduling_service.dart';
 
 class JobDetailScreen extends ConsumerWidget {
@@ -86,43 +87,71 @@ class _JobDetailViewState extends ConsumerState<_JobDetailView> {
   }
 
   Future<void> _runNow() async {
-    final db = ref.read(databaseProvider);
-    // Reuse any existing queued row to avoid duplicate queued runs, which
-    // would cause getQueuedRunForJob to see >1 row and throw StateError.
-    final existing = await db.runsDao.getQueuedRunForJob(widget.job.id);
-    if (existing == null) {
-      await db.runsDao.insertRun(JobRunsCompanion(
-        jobId: Value(widget.job.id),
-        startedAt: Value(DateTime.now()),
-        status: const Value(RunStatus.queued),
-        isDryRun: const Value(false),
-      ));
+    if (ForegroundRunner.isRunning) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('A job is already running — wait for it to finish')),
+        );
+      }
+      return;
     }
-    await SchedulingService.runNow(widget.job.id);
+
+    final db = ref.read(databaseProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Job queued — visible in the queue')),
+        const SnackBar(content: Text('Starting backup...')),
       );
     }
+
+    // Fire-and-forget — the foreground service keeps the process alive.
+    // Run history updates in real-time via the DB stream.
+    ForegroundRunner.runNow(db, widget.job.id).then((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Backup finished')),
+        );
+      }
+    }).catchError((e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Backup error: $e')),
+        );
+      }
+    });
   }
 
   Future<void> _dryRun() async {
-    final db = ref.read(databaseProvider);
-    final existing = await db.runsDao.getQueuedRunForJob(widget.job.id);
-    if (existing == null) {
-      await db.runsDao.insertRun(JobRunsCompanion(
-        jobId: Value(widget.job.id),
-        startedAt: Value(DateTime.now()),
-        status: const Value(RunStatus.queued),
-        isDryRun: const Value(true),
-      ));
+    if (ForegroundRunner.isRunning) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('A job is already running — wait for it to finish')),
+        );
+      }
+      return;
     }
-    await SchedulingService.dryRun(widget.job.id);
+
+    final db = ref.read(databaseProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dry run queued — visible in the queue')),
+        const SnackBar(content: Text('Starting dry run...')),
       );
     }
+
+    ForegroundRunner.runNow(db, widget.job.id, dryRun: true).then((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Dry run finished')),
+        );
+      }
+    }).catchError((e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Dry run error: $e')),
+        );
+      }
+    });
   }
 
   void _rebaseline() => ScaffoldMessenger.of(context).showSnackBar(

@@ -1,5 +1,6 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,8 @@ import '../../../core/database/app_database.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/scheduling_service.dart';
+import 'package:path/path.dart' as p;
+import '../widgets/file_browser_dialog.dart';
 
 enum _BackAction { cancel, discard, create }
 
@@ -140,16 +143,25 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
   }
 
   Future<void> _pickSource() async {
-    if (_jobType == JobType.folderBackup) {
-      final result = await FilePicker.platform.getDirectoryPath();
-      if (result != null && mounted) {
-        setState(() => _sourceController.text = result);
+    final current = _sourceController.text.trim();
+    final pickDir = _jobType == JobType.folderBackup;
+    String? startPath;
+    if (current.isNotEmpty) {
+      final candidate = pickDir ? current : p.dirname(current);
+      // Ignore stale cache paths or anything not on shared storage.
+      if (candidate.startsWith('/storage/emulated/0') &&
+          !candidate.contains('/cache/') &&
+          Directory(candidate).existsSync()) {
+        startPath = candidate;
       }
-    } else {
-      final result = await FilePicker.platform.pickFiles(allowMultiple: false);
-      if (result != null && result.files.single.path != null && mounted) {
-        setState(() => _sourceController.text = result.files.single.path!);
-      }
+    }
+    final picked = await FileBrowserDialog.show(
+      context,
+      pickDirectory: pickDir,
+      initialPath: startPath,
+    );
+    if (picked != null && mounted) {
+      setState(() => _sourceController.text = picked);
     }
   }
 
@@ -432,16 +444,25 @@ class _JobCreateScreenState extends ConsumerState<JobCreateScreen> {
                 labelText: _jobType == JobType.folderBackup
                     ? 'Source folder on phone'
                     : 'Source file on phone',
+                hintText: _jobType == JobType.folderBackup
+                    ? '/storage/emulated/0/DCIM'
+                    : '/storage/emulated/0/Documents/file.xlsx',
                 border: const OutlineInputBorder(),
+                helperText: 'Type a path or tap the folder icon to browse',
+                helperMaxLines: 2,
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.folder_open),
+                  tooltip: 'Browse',
                   onPressed: _pickSource,
                 ),
               ),
-              readOnly: true,
-              onTap: _pickSource,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required — tap to browse' : null,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Required';
+                if (v.contains('/cache/file_picker/') || v.contains('/cache/')) {
+                  return 'This is a temporary cache path — enter the real path on storage';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
             TextFormField(

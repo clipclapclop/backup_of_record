@@ -1,3 +1,4 @@
+import 'dart:developer' as dev;
 import 'dart:io';
 
 import 'package:archive/archive.dart';
@@ -75,6 +76,12 @@ class BackupEngine {
 
   void cancel() => _cancelled = true;
 
+  static void _debugLog(String msg) {
+    dev.log('[BackupEngine] $msg', name: 'backup');
+    // ignore: avoid_print
+    print('[BackupEngine] $msg');
+  }
+
   void _checkCancelled() {
     if (_cancelled) throw const BackupCancelledException();
   }
@@ -111,9 +118,15 @@ class BackupEngine {
     void Function(BackupProgress)? onProgress,
   }) async {
     _cancelled = false;
+    _debugLog('runJob START — jobId=$jobId dryRun=$dryRun');
 
     final job = await _db.jobsDao.getJob(jobId);
-    if (job == null) return;
+    if (job == null) {
+      _debugLog('runJob ABORT — job not found in DB');
+      return;
+    }
+    _debugLog('job loaded: name="${job.name}" type=${job.jobType} '
+        'source="${job.sourcePath}" dest="${job.destinationNasPath}"');
 
     // WiFi-only check: skip if not connected via WiFi.
     if (job.wifiOnly && !dryRun) {
@@ -130,12 +143,15 @@ class BackupEngine {
 
     final settings = await _db.settingsDao.getSettings();
     if (settings == null) {
-      await _notif.showError(
-          'Backup failed', '${job.name}: NAS not configured');
+      _debugLog('runJob ABORT — no settings row');
+      await _failFast(jobId, 'NAS not configured', job.name, dryRun);
       return;
     }
+    _debugLog('settings: host=${settings.nasHost}:${settings.nasPort} '
+        'https=${settings.useHttps} user=${settings.nasUsername}');
 
     final password = await _storage.getNasPassword() ?? '';
+    _debugLog('password loaded (${password.isEmpty ? "EMPTY" : "${password.length} chars"})');
     final webdav = WebDavService(
       host: settings.nasHost,
       port: settings.nasPort,
@@ -144,20 +160,43 @@ class BackupEngine {
       password: password,
     );
 
-    // Low-storage warning
-    if (settings.spaceWarnThresholdGb > 0) {
-      final available = await webdav.getAvailableBytes();
-      if (available != null) {
-        final thresholdBytes =
-            settings.spaceWarnThresholdGb * 1024 * 1024 * 1024;
-        if (available < thresholdBytes &&
-            (settings.notificationFlags & _kNotifyLowSpace) != 0) {
-          await _notif.showInfo(
-            'Low NAS storage',
-            '${(available / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB remaining',
-          );
-        }
-      }
+    // ── Pre-flight: verify NAS is reachable ────────────────────────────────
+    _debugLog('pre-flight: testing NAS connection...');
+    final bool nasReachable;
+    try {
+      nasReachable = await webdav.testConnection().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => false,
+      );
+    } catch (e) {
+      _debugLog('pre-flight: connection test EXCEPTION: $e');
+      webdav.dispose();
+      await _failFast(
+          jobId, 'Cannot reach NAS at ${settings.nasHost}', job.name, dryRun);
+      return;
+    }
+    _debugLog('pre-flight: testConnection returned $nasReachable');
+    if (!nasReachable) {
+      webdav.dispose();
+      await _failFast(
+          jobId, 'NAS not reachable or credentials wrong', job.name, dryRun);
+      return;
+    }
+
+    // ── Pre-flight: verify destination path exists or can be created ──────
+    _debugLog('pre-flight: creating destination "${job.destinationNasPath}"...');
+    try {
+      await webdav.createDirectoryIfNeeded(job.destinationNasPath);
+      _debugLog('pre-flight: destination OK');
+    } catch (e) {
+      _debugLog('pre-flight: destination FAILED: $e');
+      webdav.dispose();
+      await _failFast(
+          jobId,
+          'Cannot create destination ${job.destinationNasPath} — $e',
+          job.name,
+          dryRun);
+      return;
     }
 
     final startedAt = DateTime.now();
@@ -187,6 +226,28 @@ class BackupEngine {
     try {
       await _recoverStaleParts(job, webdav);
       onProgress?.call(const BackupProgress());
+
+      // Low-storage warning (non-blocking — don't let it stall the backup)
+      if (settings.spaceWarnThresholdGb > 0) {
+        try {
+          final available = await webdav
+              .getAvailableBytes()
+              .timeout(const Duration(seconds: 10));
+          if (available != null) {
+            final thresholdBytes =
+                settings.spaceWarnThresholdGb * 1024 * 1024 * 1024;
+            if (available < thresholdBytes &&
+                (settings.notificationFlags & _kNotifyLowSpace) != 0) {
+              await _notif.showInfo(
+                'Low NAS storage',
+                '${(available / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB remaining',
+              );
+            }
+          }
+        } catch (_) {
+          // Quota check failed — not critical, continue with backup
+        }
+      }
 
       if (job.jobType == JobType.folderBackup) {
         await _runFolderBackup(job, runId, webdav, stats,
@@ -229,12 +290,47 @@ class BackupEngine {
       errorSummary: Value(stats.errorSummary),
     ));
 
+    _debugLog('runJob DONE — status=$finalStatus scanned=${stats.scanned} '
+        'uploaded=${stats.uploaded} skipped=${stats.skipped} failed=${stats.failed} '
+        'bytes=${stats.bytes} error=${stats.errorSummary}');
+
     await _db.jobsDao.updateLastRun(jobId, completedAt, finalStatus.name);
 
     if (!dryRun) {
       await _sendNotification(
           job.name, finalStatus, stats, settings.notificationFlags);
     }
+  }
+
+  // ── Pre-flight failure helper ────────────────────────────────────────────────
+
+  /// Records a failed run and notifies, for errors caught before the main loop.
+  Future<void> _failFast(
+      int jobId, String error, String jobName, bool dryRun) async {
+    final now = DateTime.now();
+    // Consume any queued placeholder so the queue screen doesn't show a stale entry
+    final queuedRun = await _db.runsDao.getQueuedRunForJob(jobId);
+    final int runId;
+    if (queuedRun != null) {
+      runId = queuedRun.id;
+    } else {
+      runId = await _db.runsDao.insertRun(JobRunsCompanion(
+        jobId: Value(jobId),
+        startedAt: Value(now),
+        status: const Value(RunStatus.failed),
+        isDryRun: Value(dryRun),
+      ));
+    }
+    await _db.runsDao.updateRun(JobRunsCompanion(
+      id: Value(runId),
+      startedAt: Value(now),
+      completedAt: Value(now),
+      status: const Value(RunStatus.failed),
+      isDryRun: Value(dryRun),
+      errorSummary: Value(error),
+    ));
+    await _db.jobsDao.updateLastRun(jobId, now, RunStatus.failed.name);
+    await _notif.showError('Backup failed', '$jobName: $error');
   }
 
   // ── Crash recovery ──────────────────────────────────────────────────────────
@@ -258,14 +354,25 @@ class BackupEngine {
     void Function(BackupProgress)? onProgress,
   }) async {
     final sourceDir = Directory(job.sourcePath);
+    _debugLog('folderBackup: sourceDir="${job.sourcePath}" exists=${sourceDir.existsSync()}');
     if (!sourceDir.existsSync()) {
       throw Exception('Source folder not found: ${job.sourcePath}');
     }
 
-    final allFiles = sourceDir
-        .listSync(recursive: true, followLinks: false)
-        .whereType<File>()
-        .toList();
+    List<File> allFiles;
+    try {
+      allFiles = sourceDir
+          .listSync(recursive: true, followLinks: false)
+          .whereType<File>()
+          .toList();
+      _debugLog('folderBackup: listSync found ${allFiles.length} files');
+      if (allFiles.isNotEmpty) {
+        _debugLog('folderBackup: first file: ${allFiles.first.path}');
+      }
+    } catch (e) {
+      _debugLog('folderBackup: listSync THREW: $e');
+      rethrow;
+    }
 
     // Pre-fetch all file records for this job — one query, O(1) lookups after
     final existingRecords = await _db.filesDao.getFilesForJob(job.id);
@@ -283,12 +390,21 @@ class BackupEngine {
 
     stats.scanned = allFiles.length;
 
-    // Log transparency: empty source dir or Stage 1 filtered files
+    // Fail if the directory exists but lists as empty — almost certainly a
+    // storage-permission problem on Android 11+.  Do NOT mark this "success".
     if (allFiles.isEmpty) {
-      await _log(runId, null, FileAction.strategyFiltered, job.sourcePath,
+      await _log(runId, null, FileAction.failed, job.sourcePath,
           error:
               'Source directory is empty or inaccessible — check storage permissions');
-    } else if (cutoff != null) {
+      stats.failed++;
+      stats.errorSummary =
+          'Source directory appears empty — grant "All files access" in '
+          'Settings → Apps → Backup of Record → Permissions';
+      return;
+    }
+
+    // Log transparency: Stage 1 filtered files
+    if (cutoff != null) {
       final passedPaths = files.map((f) => f.path).toSet();
       for (final f in allFiles) {
         if (!passedPaths.contains(f.path)) {
@@ -320,7 +436,10 @@ class BackupEngine {
 
       try {
         final record = recordMap[relPath];
-        if (!await _fileNeedsUpload(file, record, job)) {
+        final needsUpload = await _fileNeedsUpload(file, record, job);
+        _debugLog('  file "$relPath": needsUpload=$needsUpload '
+            'hasRecord=${record != null}');
+        if (!needsUpload) {
           stats.skipped++;
           processed++;
           continue;
@@ -355,6 +474,7 @@ class BackupEngine {
         );
 
         try {
+          _debugLog('  uploading "$relPath" → "$finalNasPath" ($fileSize bytes)');
           final prevBytes = stats.bytes;
           await webdav.uploadFile(
             uploadFile,
@@ -369,6 +489,7 @@ class BackupEngine {
             },
           );
           stats.bytes += fileSize;
+          _debugLog('  upload OK: "$relPath"');
         } finally {
           await _db.filesDao.deleteInProgress(inProgressId);
           if (uploadFile.path != file.path) await uploadFile.delete();
@@ -407,7 +528,8 @@ class BackupEngine {
 
         await _log(runId, recordId, FileAction.uploaded, relPath);
         stats.uploaded++;
-      } catch (e) {
+      } catch (e, st) {
+        _debugLog('  FAILED "$relPath": $e\n$st');
         stats.failed++;
         await _log(runId, null, FileAction.failed, relPath,
             error: e.toString());

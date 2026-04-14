@@ -8,6 +8,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/job_runs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/jobs_provider.dart';
+import '../../../core/services/foreground_runner.dart';
 import '../../../core/services/scheduling_service.dart';
 
 class QueueScreen extends ConsumerWidget {
@@ -258,6 +259,12 @@ class _QueueCard extends ConsumerWidget {
       ));
     } else {
       // Signal the engine to stop between files.
+      // Cancel both the foreground runner (if active) and the DB flag
+      // (for WorkManager-driven runs).
+      if (ForegroundRunner.isRunning &&
+          ForegroundRunner.activeJobId == run.jobId) {
+        ForegroundRunner.cancel();
+      }
       await db.runsDao.requestCancel(run.id);
     }
   }

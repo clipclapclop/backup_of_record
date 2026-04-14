@@ -78,6 +78,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   bool? _connectionResult; // null = not tested, true = ok, false = failed
   bool _testing = false;
   bool? _batteryExempt; // null = unknown, true = exempted, false = not exempted
+  bool? _storageGranted; // null = unknown, true = granted, false = denied
 
   String? _backupExportPath; // SAF URI, persisted in DB
   bool _exporting = false;
@@ -90,12 +91,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     WidgetsBinding.instance.addObserver(this);
     _loadSettings();
     _checkBatteryExemption();
+    _checkStoragePermission();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Refresh status when user returns from the system battery settings dialog
-    if (state == AppLifecycleState.resumed) _checkBatteryExemption();
+    // Refresh status when user returns from system settings dialogs
+    if (state == AppLifecycleState.resumed) {
+      _checkBatteryExemption();
+      _checkStoragePermission();
+    }
   }
 
   Future<void> _checkBatteryExemption() async {
@@ -106,6 +111,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Future<void> _requestBatteryExemption() async {
     await Permission.ignoreBatteryOptimizations.request();
     await _checkBatteryExemption();
+  }
+
+  Future<void> _checkStoragePermission() async {
+    final status = await Permission.manageExternalStorage.status;
+    if (mounted) setState(() => _storageGranted = status.isGranted);
+  }
+
+  Future<void> _requestStoragePermission() async {
+    final status = await Permission.manageExternalStorage.request();
+    if (status.isPermanentlyDenied) {
+      // On Android 11+ this always opens the system Settings page
+      await openAppSettings();
+    }
+    await _checkStoragePermission();
   }
 
   Future<void> _loadSettings() async {
@@ -626,6 +645,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               tooltip: 'Notify on every successful run — can be frequent if jobs run often',
             ),
             const SizedBox(height: 24),
+            _sectionHeader('Storage Access',
+                icon: Icons.folder_rounded,
+                infoTitle: 'Storage Access',
+                infoBody:
+                    'Android 11+ requires "All files access" for apps that read files outside '
+                    'their own private directories.\n\n'
+                    'Without this permission, backup jobs will see source folders as empty and '
+                    'report success with zero files uploaded.\n\n'
+                    'Tapping "Grant" opens the system Settings page where you can toggle the '
+                    'permission for Backup of Record.'),
+            _StoragePermissionRow(
+              granted: _storageGranted,
+              onRequest: _requestStoragePermission,
+            ),
+            const SizedBox(height: 24),
             _sectionHeader('Background Execution',
                 icon: Icons.battery_saver_rounded,
                 infoTitle: 'Background Execution',
@@ -869,6 +903,61 @@ class _BatteryExemptionRow extends StatelessWidget {
             child: OutlinedButton(
               onPressed: onRequest,
               child: const Text('Fix'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _StoragePermissionRow extends StatelessWidget {
+  final bool? granted;
+  final VoidCallback onRequest;
+
+  const _StoragePermissionRow({required this.granted, required this.onRequest});
+
+  @override
+  Widget build(BuildContext context) {
+    final isGranted = granted ?? false;
+    final unknown = granted == null;
+    final color =
+        isGranted ? Colors.green : Theme.of(context).colorScheme.error;
+
+    return Row(
+      children: [
+        Icon(
+          isGranted
+              ? Icons.check_circle
+              : (unknown
+                  ? Icons.help_outline
+                  : Icons.warning_amber_rounded),
+          size: 20,
+          color: unknown
+              ? Theme.of(context).colorScheme.onSurfaceVariant
+              : color,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            unknown
+                ? 'Checking...'
+                : isGranted
+                    ? 'All files access granted'
+                    : 'Not granted — backups will see empty folders',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: unknown ? null : color,
+                ),
+          ),
+        ),
+        if (!isGranted) ...[
+          const SizedBox(width: 8),
+          Tooltip(
+            message:
+                'Open system settings to grant "All files access"',
+            child: OutlinedButton(
+              onPressed: onRequest,
+              child: const Text('Grant'),
             ),
           ),
         ],

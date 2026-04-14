@@ -46,10 +46,19 @@ class WebDavService {
     required this.useHttps,
     required this.username,
     required this.password,
-  }) : _client = useHttps ? _buildPermissiveHttpsClient() : http.Client();
+  }) : _client = useHttps
+            ? _buildPermissiveHttpsClient()
+            : _buildHttpClient();
+
+  static http.Client _buildHttpClient() {
+    final ioClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    return _IOHttpClient(ioClient);
+  }
 
   static http.Client _buildPermissiveHttpsClient() {
     final ioClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15)
       ..badCertificateCallback = (cert, host, port) => true;
     return _IOHttpClient(ioClient);
   }
