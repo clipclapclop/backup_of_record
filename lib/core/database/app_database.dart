@@ -34,7 +34,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -72,6 +72,25 @@ class AppDatabase extends _$AppDatabase {
           CREATE UNIQUE INDEX file_records_job_path
           ON file_records (job_id, relative_path)
         ''');
+      }
+      if (from < 7) {
+        await m.addColumn(globalSettings, globalSettings.autoBackupDirty);
+        await m.addColumn(
+            globalSettings, globalSettings.autoBackupLastExportAt);
+        // Existing backupExportPath values are SAF content:// URIs from the
+        // old flow; the new code expects raw filesystem paths. Wipe so the
+        // user re-picks via the file browser.
+        await m.database.customStatement(
+          "UPDATE global_settings SET backup_export_path = NULL "
+          "WHERE backup_export_path LIKE 'content://%'",
+        );
+      }
+      if (from < 8) {
+        await m.addColumn(jobs, jobs.sortOrder);
+        // Preserve existing display order by seeding sortOrder from id.
+        await m.database.customStatement(
+          'UPDATE jobs SET sort_order = id',
+        );
       }
     },
   );

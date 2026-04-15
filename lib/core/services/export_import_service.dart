@@ -7,7 +7,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../database/app_database.dart';
-import 'saf_service.dart';
 
 class ExportImportService {
   /// Builds the export zip and returns the raw bytes.
@@ -43,9 +42,14 @@ class ExportImportService {
     }
   }
 
-  /// Writes the export zip to the SAF folder URI the user previously picked.
-  Future<void> writeToSaf(String safUri, Uint8List zipBytes) =>
-      SafService.writeFile(safUri, 'backup_of_record_backup.zip', zipBytes);
+  /// Writes the export zip to a raw filesystem path (requires
+  /// MANAGE_EXTERNAL_STORAGE for anywhere outside app-private dirs).
+  /// Creates parent directories as needed.
+  Future<void> writeToFile(String filePath, Uint8List zipBytes) async {
+    final file = File(filePath);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(zipBytes, flush: true);
+  }
 
   /// Imports a backup zip, fully replacing the existing database.
   ///

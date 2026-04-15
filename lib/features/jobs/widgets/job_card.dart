@@ -6,8 +6,15 @@ class JobCard extends StatelessWidget {
   final Job job;
   final VoidCallback onTap;
   final VoidCallback? onEdit;
+  final Widget? dragHandle;
 
-  const JobCard({super.key, required this.job, required this.onTap, this.onEdit});
+  const JobCard({
+    super.key,
+    required this.job,
+    required this.onTap,
+    this.onEdit,
+    this.dragHandle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +155,7 @@ class JobCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                   constraints: const BoxConstraints(),
                 ),
+              ?dragHandle,
             ],
           ),
         ),

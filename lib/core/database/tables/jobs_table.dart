@@ -50,6 +50,8 @@ class Jobs extends Table {
   BoolColumn get wifiOnly => boolean().withDefault(const Constant(false))();
   BoolColumn get isEnabled => boolean().withDefault(const Constant(true))();
 
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get lastRunAt => dateTime().nullable()();
   // last run status stored as string (success/partial/failed/never)

@@ -1,18 +1,21 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/tables/jobs_table.dart';
 import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/export_import_service.dart';
-import '../../../core/services/saf_service.dart';
 import '../../../core/services/secure_storage_service.dart';
 import '../../../core/services/webdav_service.dart';
+import '../../jobs/widgets/file_browser_dialog.dart';
 
 // Notification flag bit positions
 const kNotifyJobFailed = 0x01;
@@ -80,7 +83,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   bool? _batteryExempt; // null = unknown, true = exempted, false = not exempted
   bool? _storageGranted; // null = unknown, true = granted, false = denied
 
-  String? _backupExportPath; // SAF URI, persisted in DB
+  String? _backupExportPath; // Raw filesystem path, persisted in DB
+  DateTime? _autoBackupLastExportAt;
   bool _exporting = false;
   bool _importing = false;
   final _exportImportService = ExportImportService();
@@ -145,6 +149,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           _defaultCompression = settings.defaultCompressionType;
           _defaultJobTime = TimeOfDay(hour: settings.defaultJobHour, minute: settings.defaultJobMinute);
           _backupExportPath = settings.backupExportPath;
+          _autoBackupLastExportAt = settings.autoBackupLastExportAt;
         } else {
           _portController.text = '5006';
           _spaceThresholdController.text = '10';
@@ -257,14 +262,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  Future<void> _pickExportDir() async {
-    final uri = await SafService.pickFolder();
-    if (uri == null || !mounted) return;
-    setState(() => _backupExportPath = uri);
+  Future<void> _pickExportPath() async {
+    // Pick a folder; the zip filename is fixed so auto-export can match
+    // a job sourcePath exactly.
+    final dir = await FileBrowserDialog.show(
+      context,
+      pickDirectory: true,
+      initialPath: _backupExportPath != null
+          ? File(_backupExportPath!).parent.path
+          : null,
+    );
+    if (dir == null || !mounted) return;
+    final path = p.join(dir, 'backup_of_record_backup.zip');
+    setState(() => _backupExportPath = path);
     final db = ref.read(databaseProvider);
     await db.settingsDao.upsertSettings(GlobalSettingsCompanion(
       id: const Value(1),
-      backupExportPath: Value(uri),
+      backupExportPath: Value(path),
     ));
   }
 
@@ -279,10 +293,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     setState(() => _exporting = true);
     try {
       final bytes = await _exportImportService.buildExportZip(db);
-      await _exportImportService.writeToSaf(_backupExportPath!, bytes);
+      await _exportImportService.writeToFile(_backupExportPath!, bytes);
+      await db.settingsDao.markCleanExported(DateTime.now());
       if (mounted) {
+        setState(() => _autoBackupLastExportAt = DateTime.now());
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup saved to selected folder.')),
+          SnackBar(content: Text('Backup saved to $_backupExportPath')),
         );
       }
     } catch (e) {
@@ -685,15 +701,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     'Choose a folder once — Export Now will always write '
                     'backup_of_record_backup.zip there without prompting again. '
                     'Use this before uninstalling or switching phones.\n\n'
+                    'To auto-export before each upload, create a living-file '
+                    'job whose source is the same path shown here. The backup '
+                    'engine will regenerate the zip (if anything changed) '
+                    'right before the upload runs.\n\n'
                     'Import Backup restores from a previously exported .zip, replacing all current data. '
                     'The app restarts immediately after a successful import.'),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    _backupExportPath != null
-                        ? SafService.displayName(_backupExportPath!)
-                        : 'No export folder set',
+                    _backupExportPath ?? 'No export path set',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: _backupExportPath == null
                               ? Theme.of(context).colorScheme.onSurfaceVariant
@@ -706,11 +724,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   message: 'Choose the folder where app backups will be saved',
                   child: IconButton(
                     icon: const Icon(Icons.folder_open_rounded),
-                    onPressed: _pickExportDir,
+                    onPressed: _pickExportPath,
                   ),
                 ),
               ],
             ),
+            if (_autoBackupLastExportAt != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Last export: ${_autoBackupLastExportAt!.toLocal()}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [

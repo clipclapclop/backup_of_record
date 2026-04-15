@@ -14,6 +14,7 @@ import '../database/tables/file_records_table.dart';
 import '../database/tables/file_run_logs_table.dart';
 import '../database/tables/job_runs_table.dart';
 import '../database/tables/jobs_table.dart';
+import 'export_import_service.dart';
 import 'notification_service.dart';
 import 'secure_storage_service.dart';
 import 'webdav_service.dart';
@@ -63,6 +64,7 @@ class BackupEngine {
   final AppDatabase _db;
   final SecureStorageService _storage;
   final NotificationService _notif;
+  final ExportImportService _exportImport;
 
   bool _cancelled = false;
 
@@ -70,9 +72,11 @@ class BackupEngine {
     required AppDatabase db,
     required SecureStorageService storage,
     required NotificationService notif,
+    ExportImportService? exportImport,
   })  : _db = db,
         _storage = storage,
-        _notif = notif;
+        _notif = notif,
+        _exportImport = exportImport ?? ExportImportService();
 
   void cancel() => _cancelled = true;
 
@@ -149,6 +153,28 @@ class BackupEngine {
     }
     _debugLog('settings: host=${settings.nasHost}:${settings.nasPort} '
         'https=${settings.useHttps} user=${settings.nasUsername}');
+
+    // Self-backup pre-step: if this job's source is the app's own export
+    // file and the data has changed since the last export, regenerate the
+    // zip first so the upload picks up the fresh copy. If this fails, fail
+    // the whole job — the upload would otherwise send a stale backup.
+    if (!dryRun &&
+        settings.backupExportPath != null &&
+        settings.backupExportPath == job.sourcePath &&
+        settings.autoBackupDirty) {
+      _debugLog('self-backup: regenerating export at ${job.sourcePath}');
+      try {
+        final bytes = await _exportImport.buildExportZip(_db);
+        await _exportImport.writeToFile(job.sourcePath, bytes);
+        await _db.settingsDao.markCleanExported(DateTime.now());
+        _debugLog('self-backup: wrote ${bytes.length} bytes');
+      } catch (e) {
+        _debugLog('self-backup: FAILED: $e');
+        await _failFast(
+            jobId, 'Self-backup export failed — $e', job.name, dryRun);
+        return;
+      }
+    }
 
     final password = await _storage.getNasPassword() ?? '';
     _debugLog('password loaded (${password.isEmpty ? "EMPTY" : "${password.length} chars"})');

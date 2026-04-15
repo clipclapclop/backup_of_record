@@ -26,8 +26,18 @@ class GlobalSettings extends Table {
   IntColumn get notificationFlags =>
       integer().withDefault(const Constant(0xFF))();
 
-  // Directory path where backup zips are saved (null = not set)
+  // Filesystem path where the app backup zip is saved (null = not set).
+  // Must be a raw path (e.g. /storage/emulated/0/Documents/backup.zip),
+  // not a SAF content URI — so BackupEngine can string-match it against a
+  // job's sourcePath and auto-regenerate the zip before uploading.
   TextColumn get backupExportPath => text().nullable()();
+
+  // True when jobs/settings have changed since the last self-export.
+  // BackupEngine checks this before regenerating the zip during a self-backup.
+  BoolColumn get autoBackupDirty => boolean().withDefault(const Constant(true))();
+
+  // When the self-export last wrote successfully (null = never).
+  DateTimeColumn get autoBackupLastExportAt => dateTime().nullable()();
 
   // Default run time for new jobs (24-hour components)
   IntColumn get defaultJobHour => integer().withDefault(const Constant(2))();

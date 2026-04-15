@@ -180,6 +180,18 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -231,6 +243,7 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
     retentionDays,
     wifiOnly,
     isEnabled,
+    sortOrder,
     createdAt,
     lastRunAt,
     lastRunStatus,
@@ -320,6 +333,12 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
       context.handle(
         _isEnabledMeta,
         isEnabled.isAcceptableOrUnknown(data['is_enabled']!, _isEnabledMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
       );
     }
     if (data.containsKey('created_at')) {
@@ -430,6 +449,10 @@ class $JobsTable extends Jobs with TableInfo<$JobsTable, Job> {
         DriftSqlType.bool,
         data['${effectivePrefix}is_enabled'],
       )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -487,6 +510,7 @@ class Job extends DataClass implements Insertable<Job> {
   final int? retentionDays;
   final bool wifiOnly;
   final bool isEnabled;
+  final int sortOrder;
   final DateTime createdAt;
   final DateTime? lastRunAt;
   final String? lastRunStatus;
@@ -507,6 +531,7 @@ class Job extends DataClass implements Insertable<Job> {
     this.retentionDays,
     required this.wifiOnly,
     required this.isEnabled,
+    required this.sortOrder,
     required this.createdAt,
     this.lastRunAt,
     this.lastRunStatus,
@@ -562,6 +587,7 @@ class Job extends DataClass implements Insertable<Job> {
     }
     map['wifi_only'] = Variable<bool>(wifiOnly);
     map['is_enabled'] = Variable<bool>(isEnabled);
+    map['sort_order'] = Variable<int>(sortOrder);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || lastRunAt != null) {
       map['last_run_at'] = Variable<DateTime>(lastRunAt);
@@ -600,6 +626,7 @@ class Job extends DataClass implements Insertable<Job> {
           : Value(retentionDays),
       wifiOnly: Value(wifiOnly),
       isEnabled: Value(isEnabled),
+      sortOrder: Value(sortOrder),
       createdAt: Value(createdAt),
       lastRunAt: lastRunAt == null && nullToAbsent
           ? const Value.absent()
@@ -646,6 +673,7 @@ class Job extends DataClass implements Insertable<Job> {
       retentionDays: serializer.fromJson<int?>(json['retentionDays']),
       wifiOnly: serializer.fromJson<bool>(json['wifiOnly']),
       isEnabled: serializer.fromJson<bool>(json['isEnabled']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       lastRunAt: serializer.fromJson<DateTime?>(json['lastRunAt']),
       lastRunStatus: serializer.fromJson<String?>(json['lastRunStatus']),
@@ -683,6 +711,7 @@ class Job extends DataClass implements Insertable<Job> {
       'retentionDays': serializer.toJson<int?>(retentionDays),
       'wifiOnly': serializer.toJson<bool>(wifiOnly),
       'isEnabled': serializer.toJson<bool>(isEnabled),
+      'sortOrder': serializer.toJson<int>(sortOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'lastRunAt': serializer.toJson<DateTime?>(lastRunAt),
       'lastRunStatus': serializer.toJson<String?>(lastRunStatus),
@@ -706,6 +735,7 @@ class Job extends DataClass implements Insertable<Job> {
     Value<int?> retentionDays = const Value.absent(),
     bool? wifiOnly,
     bool? isEnabled,
+    int? sortOrder,
     DateTime? createdAt,
     Value<DateTime?> lastRunAt = const Value.absent(),
     Value<String?> lastRunStatus = const Value.absent(),
@@ -732,6 +762,7 @@ class Job extends DataClass implements Insertable<Job> {
         : this.retentionDays,
     wifiOnly: wifiOnly ?? this.wifiOnly,
     isEnabled: isEnabled ?? this.isEnabled,
+    sortOrder: sortOrder ?? this.sortOrder,
     createdAt: createdAt ?? this.createdAt,
     lastRunAt: lastRunAt.present ? lastRunAt.value : this.lastRunAt,
     lastRunStatus: lastRunStatus.present
@@ -776,6 +807,7 @@ class Job extends DataClass implements Insertable<Job> {
           : this.retentionDays,
       wifiOnly: data.wifiOnly.present ? data.wifiOnly.value : this.wifiOnly,
       isEnabled: data.isEnabled.present ? data.isEnabled.value : this.isEnabled,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       lastRunAt: data.lastRunAt.present ? data.lastRunAt.value : this.lastRunAt,
       lastRunStatus: data.lastRunStatus.present
@@ -803,6 +835,7 @@ class Job extends DataClass implements Insertable<Job> {
           ..write('retentionDays: $retentionDays, ')
           ..write('wifiOnly: $wifiOnly, ')
           ..write('isEnabled: $isEnabled, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastRunAt: $lastRunAt, ')
           ..write('lastRunStatus: $lastRunStatus')
@@ -828,6 +861,7 @@ class Job extends DataClass implements Insertable<Job> {
     retentionDays,
     wifiOnly,
     isEnabled,
+    sortOrder,
     createdAt,
     lastRunAt,
     lastRunStatus,
@@ -852,6 +886,7 @@ class Job extends DataClass implements Insertable<Job> {
           other.retentionDays == this.retentionDays &&
           other.wifiOnly == this.wifiOnly &&
           other.isEnabled == this.isEnabled &&
+          other.sortOrder == this.sortOrder &&
           other.createdAt == this.createdAt &&
           other.lastRunAt == this.lastRunAt &&
           other.lastRunStatus == this.lastRunStatus);
@@ -874,6 +909,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
   final Value<int?> retentionDays;
   final Value<bool> wifiOnly;
   final Value<bool> isEnabled;
+  final Value<int> sortOrder;
   final Value<DateTime> createdAt;
   final Value<DateTime?> lastRunAt;
   final Value<String?> lastRunStatus;
@@ -894,6 +930,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     this.retentionDays = const Value.absent(),
     this.wifiOnly = const Value.absent(),
     this.isEnabled = const Value.absent(),
+    this.sortOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.lastRunAt = const Value.absent(),
     this.lastRunStatus = const Value.absent(),
@@ -915,6 +952,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     this.retentionDays = const Value.absent(),
     this.wifiOnly = const Value.absent(),
     this.isEnabled = const Value.absent(),
+    this.sortOrder = const Value.absent(),
     required DateTime createdAt,
     this.lastRunAt = const Value.absent(),
     this.lastRunStatus = const Value.absent(),
@@ -944,6 +982,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     Expression<int>? retentionDays,
     Expression<bool>? wifiOnly,
     Expression<bool>? isEnabled,
+    Expression<int>? sortOrder,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? lastRunAt,
     Expression<String>? lastRunStatus,
@@ -966,6 +1005,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
       if (retentionDays != null) 'retention_days': retentionDays,
       if (wifiOnly != null) 'wifi_only': wifiOnly,
       if (isEnabled != null) 'is_enabled': isEnabled,
+      if (sortOrder != null) 'sort_order': sortOrder,
       if (createdAt != null) 'created_at': createdAt,
       if (lastRunAt != null) 'last_run_at': lastRunAt,
       if (lastRunStatus != null) 'last_run_status': lastRunStatus,
@@ -989,6 +1029,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
     Value<int?>? retentionDays,
     Value<bool>? wifiOnly,
     Value<bool>? isEnabled,
+    Value<int>? sortOrder,
     Value<DateTime>? createdAt,
     Value<DateTime?>? lastRunAt,
     Value<String?>? lastRunStatus,
@@ -1010,6 +1051,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
       retentionDays: retentionDays ?? this.retentionDays,
       wifiOnly: wifiOnly ?? this.wifiOnly,
       isEnabled: isEnabled ?? this.isEnabled,
+      sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
       lastRunAt: lastRunAt ?? this.lastRunAt,
       lastRunStatus: lastRunStatus ?? this.lastRunStatus,
@@ -1079,6 +1121,9 @@ class JobsCompanion extends UpdateCompanion<Job> {
     if (isEnabled.present) {
       map['is_enabled'] = Variable<bool>(isEnabled.value);
     }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1110,6 +1155,7 @@ class JobsCompanion extends UpdateCompanion<Job> {
           ..write('retentionDays: $retentionDays, ')
           ..write('wifiOnly: $wifiOnly, ')
           ..write('isEnabled: $isEnabled, ')
+          ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('lastRunAt: $lastRunAt, ')
           ..write('lastRunStatus: $lastRunStatus')
@@ -3603,6 +3649,32 @@ class $GlobalSettingsTable extends GlobalSettings
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _autoBackupDirtyMeta = const VerificationMeta(
+    'autoBackupDirty',
+  );
+  @override
+  late final GeneratedColumn<bool> autoBackupDirty = GeneratedColumn<bool>(
+    'auto_backup_dirty',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("auto_backup_dirty" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _autoBackupLastExportAtMeta =
+      const VerificationMeta('autoBackupLastExportAt');
+  @override
+  late final GeneratedColumn<DateTime> autoBackupLastExportAt =
+      GeneratedColumn<DateTime>(
+        'auto_backup_last_export_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _defaultJobHourMeta = const VerificationMeta(
     'defaultJobHour',
   );
@@ -3639,6 +3711,8 @@ class $GlobalSettingsTable extends GlobalSettings
     spaceWarnThresholdGb,
     notificationFlags,
     backupExportPath,
+    autoBackupDirty,
+    autoBackupLastExportAt,
     defaultJobHour,
     defaultJobMinute,
   ];
@@ -3708,6 +3782,24 @@ class $GlobalSettingsTable extends GlobalSettings
         backupExportPath.isAcceptableOrUnknown(
           data['backup_export_path']!,
           _backupExportPathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_backup_dirty')) {
+      context.handle(
+        _autoBackupDirtyMeta,
+        autoBackupDirty.isAcceptableOrUnknown(
+          data['auto_backup_dirty']!,
+          _autoBackupDirtyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_backup_last_export_at')) {
+      context.handle(
+        _autoBackupLastExportAtMeta,
+        autoBackupLastExportAt.isAcceptableOrUnknown(
+          data['auto_backup_last_export_at']!,
+          _autoBackupLastExportAtMeta,
         ),
       );
     }
@@ -3786,6 +3878,14 @@ class $GlobalSettingsTable extends GlobalSettings
         DriftSqlType.string,
         data['${effectivePrefix}backup_export_path'],
       ),
+      autoBackupDirty: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}auto_backup_dirty'],
+      )!,
+      autoBackupLastExportAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}auto_backup_last_export_at'],
+      ),
       defaultJobHour: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}default_job_hour'],
@@ -3822,6 +3922,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
   final int spaceWarnThresholdGb;
   final int notificationFlags;
   final String? backupExportPath;
+  final bool autoBackupDirty;
+  final DateTime? autoBackupLastExportAt;
   final int defaultJobHour;
   final int defaultJobMinute;
   const GlobalSetting({
@@ -3835,6 +3937,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     required this.spaceWarnThresholdGb,
     required this.notificationFlags,
     this.backupExportPath,
+    required this.autoBackupDirty,
+    this.autoBackupLastExportAt,
     required this.defaultJobHour,
     required this.defaultJobMinute,
   });
@@ -3865,6 +3969,12 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     if (!nullToAbsent || backupExportPath != null) {
       map['backup_export_path'] = Variable<String>(backupExportPath);
     }
+    map['auto_backup_dirty'] = Variable<bool>(autoBackupDirty);
+    if (!nullToAbsent || autoBackupLastExportAt != null) {
+      map['auto_backup_last_export_at'] = Variable<DateTime>(
+        autoBackupLastExportAt,
+      );
+    }
     map['default_job_hour'] = Variable<int>(defaultJobHour);
     map['default_job_minute'] = Variable<int>(defaultJobMinute);
     return map;
@@ -3884,6 +3994,10 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       backupExportPath: backupExportPath == null && nullToAbsent
           ? const Value.absent()
           : Value(backupExportPath),
+      autoBackupDirty: Value(autoBackupDirty),
+      autoBackupLastExportAt: autoBackupLastExportAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(autoBackupLastExportAt),
       defaultJobHour: Value(defaultJobHour),
       defaultJobMinute: Value(defaultJobMinute),
     );
@@ -3911,6 +4025,10 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       ),
       notificationFlags: serializer.fromJson<int>(json['notificationFlags']),
       backupExportPath: serializer.fromJson<String?>(json['backupExportPath']),
+      autoBackupDirty: serializer.fromJson<bool>(json['autoBackupDirty']),
+      autoBackupLastExportAt: serializer.fromJson<DateTime?>(
+        json['autoBackupLastExportAt'],
+      ),
       defaultJobHour: serializer.fromJson<int>(json['defaultJobHour']),
       defaultJobMinute: serializer.fromJson<int>(json['defaultJobMinute']),
     );
@@ -3937,6 +4055,10 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       'spaceWarnThresholdGb': serializer.toJson<int>(spaceWarnThresholdGb),
       'notificationFlags': serializer.toJson<int>(notificationFlags),
       'backupExportPath': serializer.toJson<String?>(backupExportPath),
+      'autoBackupDirty': serializer.toJson<bool>(autoBackupDirty),
+      'autoBackupLastExportAt': serializer.toJson<DateTime?>(
+        autoBackupLastExportAt,
+      ),
       'defaultJobHour': serializer.toJson<int>(defaultJobHour),
       'defaultJobMinute': serializer.toJson<int>(defaultJobMinute),
     };
@@ -3953,6 +4075,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     int? spaceWarnThresholdGb,
     int? notificationFlags,
     Value<String?> backupExportPath = const Value.absent(),
+    bool? autoBackupDirty,
+    Value<DateTime?> autoBackupLastExportAt = const Value.absent(),
     int? defaultJobHour,
     int? defaultJobMinute,
   }) => GlobalSetting(
@@ -3970,6 +4094,10 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     backupExportPath: backupExportPath.present
         ? backupExportPath.value
         : this.backupExportPath,
+    autoBackupDirty: autoBackupDirty ?? this.autoBackupDirty,
+    autoBackupLastExportAt: autoBackupLastExportAt.present
+        ? autoBackupLastExportAt.value
+        : this.autoBackupLastExportAt,
     defaultJobHour: defaultJobHour ?? this.defaultJobHour,
     defaultJobMinute: defaultJobMinute ?? this.defaultJobMinute,
   );
@@ -3997,6 +4125,12 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
       backupExportPath: data.backupExportPath.present
           ? data.backupExportPath.value
           : this.backupExportPath,
+      autoBackupDirty: data.autoBackupDirty.present
+          ? data.autoBackupDirty.value
+          : this.autoBackupDirty,
+      autoBackupLastExportAt: data.autoBackupLastExportAt.present
+          ? data.autoBackupLastExportAt.value
+          : this.autoBackupLastExportAt,
       defaultJobHour: data.defaultJobHour.present
           ? data.defaultJobHour.value
           : this.defaultJobHour,
@@ -4019,6 +4153,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
           ..write('spaceWarnThresholdGb: $spaceWarnThresholdGb, ')
           ..write('notificationFlags: $notificationFlags, ')
           ..write('backupExportPath: $backupExportPath, ')
+          ..write('autoBackupDirty: $autoBackupDirty, ')
+          ..write('autoBackupLastExportAt: $autoBackupLastExportAt, ')
           ..write('defaultJobHour: $defaultJobHour, ')
           ..write('defaultJobMinute: $defaultJobMinute')
           ..write(')'))
@@ -4037,6 +4173,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
     spaceWarnThresholdGb,
     notificationFlags,
     backupExportPath,
+    autoBackupDirty,
+    autoBackupLastExportAt,
     defaultJobHour,
     defaultJobMinute,
   );
@@ -4054,6 +4192,8 @@ class GlobalSetting extends DataClass implements Insertable<GlobalSetting> {
           other.spaceWarnThresholdGb == this.spaceWarnThresholdGb &&
           other.notificationFlags == this.notificationFlags &&
           other.backupExportPath == this.backupExportPath &&
+          other.autoBackupDirty == this.autoBackupDirty &&
+          other.autoBackupLastExportAt == this.autoBackupLastExportAt &&
           other.defaultJobHour == this.defaultJobHour &&
           other.defaultJobMinute == this.defaultJobMinute);
 }
@@ -4069,6 +4209,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
   final Value<int> spaceWarnThresholdGb;
   final Value<int> notificationFlags;
   final Value<String?> backupExportPath;
+  final Value<bool> autoBackupDirty;
+  final Value<DateTime?> autoBackupLastExportAt;
   final Value<int> defaultJobHour;
   final Value<int> defaultJobMinute;
   const GlobalSettingsCompanion({
@@ -4082,6 +4224,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     this.spaceWarnThresholdGb = const Value.absent(),
     this.notificationFlags = const Value.absent(),
     this.backupExportPath = const Value.absent(),
+    this.autoBackupDirty = const Value.absent(),
+    this.autoBackupLastExportAt = const Value.absent(),
     this.defaultJobHour = const Value.absent(),
     this.defaultJobMinute = const Value.absent(),
   });
@@ -4096,6 +4240,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     this.spaceWarnThresholdGb = const Value.absent(),
     this.notificationFlags = const Value.absent(),
     this.backupExportPath = const Value.absent(),
+    this.autoBackupDirty = const Value.absent(),
+    this.autoBackupLastExportAt = const Value.absent(),
     this.defaultJobHour = const Value.absent(),
     this.defaultJobMinute = const Value.absent(),
   });
@@ -4110,6 +4256,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     Expression<int>? spaceWarnThresholdGb,
     Expression<int>? notificationFlags,
     Expression<String>? backupExportPath,
+    Expression<bool>? autoBackupDirty,
+    Expression<DateTime>? autoBackupLastExportAt,
     Expression<int>? defaultJobHour,
     Expression<int>? defaultJobMinute,
   }) {
@@ -4127,6 +4275,9 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
         'space_warn_threshold_gb': spaceWarnThresholdGb,
       if (notificationFlags != null) 'notification_flags': notificationFlags,
       if (backupExportPath != null) 'backup_export_path': backupExportPath,
+      if (autoBackupDirty != null) 'auto_backup_dirty': autoBackupDirty,
+      if (autoBackupLastExportAt != null)
+        'auto_backup_last_export_at': autoBackupLastExportAt,
       if (defaultJobHour != null) 'default_job_hour': defaultJobHour,
       if (defaultJobMinute != null) 'default_job_minute': defaultJobMinute,
     });
@@ -4143,6 +4294,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     Value<int>? spaceWarnThresholdGb,
     Value<int>? notificationFlags,
     Value<String?>? backupExportPath,
+    Value<bool>? autoBackupDirty,
+    Value<DateTime?>? autoBackupLastExportAt,
     Value<int>? defaultJobHour,
     Value<int>? defaultJobMinute,
   }) {
@@ -4159,6 +4312,9 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
       spaceWarnThresholdGb: spaceWarnThresholdGb ?? this.spaceWarnThresholdGb,
       notificationFlags: notificationFlags ?? this.notificationFlags,
       backupExportPath: backupExportPath ?? this.backupExportPath,
+      autoBackupDirty: autoBackupDirty ?? this.autoBackupDirty,
+      autoBackupLastExportAt:
+          autoBackupLastExportAt ?? this.autoBackupLastExportAt,
       defaultJobHour: defaultJobHour ?? this.defaultJobHour,
       defaultJobMinute: defaultJobMinute ?? this.defaultJobMinute,
     );
@@ -4207,6 +4363,14 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
     if (backupExportPath.present) {
       map['backup_export_path'] = Variable<String>(backupExportPath.value);
     }
+    if (autoBackupDirty.present) {
+      map['auto_backup_dirty'] = Variable<bool>(autoBackupDirty.value);
+    }
+    if (autoBackupLastExportAt.present) {
+      map['auto_backup_last_export_at'] = Variable<DateTime>(
+        autoBackupLastExportAt.value,
+      );
+    }
     if (defaultJobHour.present) {
       map['default_job_hour'] = Variable<int>(defaultJobHour.value);
     }
@@ -4229,6 +4393,8 @@ class GlobalSettingsCompanion extends UpdateCompanion<GlobalSetting> {
           ..write('spaceWarnThresholdGb: $spaceWarnThresholdGb, ')
           ..write('notificationFlags: $notificationFlags, ')
           ..write('backupExportPath: $backupExportPath, ')
+          ..write('autoBackupDirty: $autoBackupDirty, ')
+          ..write('autoBackupLastExportAt: $autoBackupLastExportAt, ')
           ..write('defaultJobHour: $defaultJobHour, ')
           ..write('defaultJobMinute: $defaultJobMinute')
           ..write(')'))
@@ -4282,6 +4448,7 @@ typedef $$JobsTableCreateCompanionBuilder =
       Value<int?> retentionDays,
       Value<bool> wifiOnly,
       Value<bool> isEnabled,
+      Value<int> sortOrder,
       required DateTime createdAt,
       Value<DateTime?> lastRunAt,
       Value<String?> lastRunStatus,
@@ -4304,6 +4471,7 @@ typedef $$JobsTableUpdateCompanionBuilder =
       Value<int?> retentionDays,
       Value<bool> wifiOnly,
       Value<bool> isEnabled,
+      Value<int> sortOrder,
       Value<DateTime> createdAt,
       Value<DateTime?> lastRunAt,
       Value<String?> lastRunStatus,
@@ -4463,6 +4631,11 @@ class $$JobsTableFilterComposer extends Composer<_$AppDatabase, $JobsTable> {
 
   ColumnFilters<bool> get isEnabled => $composableBuilder(
     column: $table.isEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4645,6 +4818,11 @@ class $$JobsTableOrderingComposer extends Composer<_$AppDatabase, $JobsTable> {
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -4742,6 +4920,9 @@ class $$JobsTableAnnotationComposer
 
   GeneratedColumn<bool> get isEnabled =>
       $composableBuilder(column: $table.isEnabled, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -4879,6 +5060,7 @@ class $$JobsTableTableManager
                 Value<int?> retentionDays = const Value.absent(),
                 Value<bool> wifiOnly = const Value.absent(),
                 Value<bool> isEnabled = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> lastRunAt = const Value.absent(),
                 Value<String?> lastRunStatus = const Value.absent(),
@@ -4899,6 +5081,7 @@ class $$JobsTableTableManager
                 retentionDays: retentionDays,
                 wifiOnly: wifiOnly,
                 isEnabled: isEnabled,
+                sortOrder: sortOrder,
                 createdAt: createdAt,
                 lastRunAt: lastRunAt,
                 lastRunStatus: lastRunStatus,
@@ -4921,6 +5104,7 @@ class $$JobsTableTableManager
                 Value<int?> retentionDays = const Value.absent(),
                 Value<bool> wifiOnly = const Value.absent(),
                 Value<bool> isEnabled = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
                 required DateTime createdAt,
                 Value<DateTime?> lastRunAt = const Value.absent(),
                 Value<String?> lastRunStatus = const Value.absent(),
@@ -4941,6 +5125,7 @@ class $$JobsTableTableManager
                 retentionDays: retentionDays,
                 wifiOnly: wifiOnly,
                 isEnabled: isEnabled,
+                sortOrder: sortOrder,
                 createdAt: createdAt,
                 lastRunAt: lastRunAt,
                 lastRunStatus: lastRunStatus,
@@ -6948,6 +7133,8 @@ typedef $$GlobalSettingsTableCreateCompanionBuilder =
       Value<int> spaceWarnThresholdGb,
       Value<int> notificationFlags,
       Value<String?> backupExportPath,
+      Value<bool> autoBackupDirty,
+      Value<DateTime?> autoBackupLastExportAt,
       Value<int> defaultJobHour,
       Value<int> defaultJobMinute,
     });
@@ -6963,6 +7150,8 @@ typedef $$GlobalSettingsTableUpdateCompanionBuilder =
       Value<int> spaceWarnThresholdGb,
       Value<int> notificationFlags,
       Value<String?> backupExportPath,
+      Value<bool> autoBackupDirty,
+      Value<DateTime?> autoBackupLastExportAt,
       Value<int> defaultJobHour,
       Value<int> defaultJobMinute,
     });
@@ -7025,6 +7214,16 @@ class $$GlobalSettingsTableFilterComposer
 
   ColumnFilters<String> get backupExportPath => $composableBuilder(
     column: $table.backupExportPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get autoBackupDirty => $composableBuilder(
+    column: $table.autoBackupDirty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get autoBackupLastExportAt => $composableBuilder(
+    column: $table.autoBackupLastExportAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7098,6 +7297,16 @@ class $$GlobalSettingsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get autoBackupDirty => $composableBuilder(
+    column: $table.autoBackupDirty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get autoBackupLastExportAt => $composableBuilder(
+    column: $table.autoBackupLastExportAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get defaultJobHour => $composableBuilder(
     column: $table.defaultJobHour,
     builder: (column) => ColumnOrderings(column),
@@ -7162,6 +7371,16 @@ class $$GlobalSettingsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get autoBackupDirty => $composableBuilder(
+    column: $table.autoBackupDirty,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get autoBackupLastExportAt => $composableBuilder(
+    column: $table.autoBackupLastExportAt,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get defaultJobHour => $composableBuilder(
     column: $table.defaultJobHour,
     builder: (column) => column,
@@ -7218,6 +7437,8 @@ class $$GlobalSettingsTableTableManager
                 Value<int> spaceWarnThresholdGb = const Value.absent(),
                 Value<int> notificationFlags = const Value.absent(),
                 Value<String?> backupExportPath = const Value.absent(),
+                Value<bool> autoBackupDirty = const Value.absent(),
+                Value<DateTime?> autoBackupLastExportAt = const Value.absent(),
                 Value<int> defaultJobHour = const Value.absent(),
                 Value<int> defaultJobMinute = const Value.absent(),
               }) => GlobalSettingsCompanion(
@@ -7231,6 +7452,8 @@ class $$GlobalSettingsTableTableManager
                 spaceWarnThresholdGb: spaceWarnThresholdGb,
                 notificationFlags: notificationFlags,
                 backupExportPath: backupExportPath,
+                autoBackupDirty: autoBackupDirty,
+                autoBackupLastExportAt: autoBackupLastExportAt,
                 defaultJobHour: defaultJobHour,
                 defaultJobMinute: defaultJobMinute,
               ),
@@ -7248,6 +7471,8 @@ class $$GlobalSettingsTableTableManager
                 Value<int> spaceWarnThresholdGb = const Value.absent(),
                 Value<int> notificationFlags = const Value.absent(),
                 Value<String?> backupExportPath = const Value.absent(),
+                Value<bool> autoBackupDirty = const Value.absent(),
+                Value<DateTime?> autoBackupLastExportAt = const Value.absent(),
                 Value<int> defaultJobHour = const Value.absent(),
                 Value<int> defaultJobMinute = const Value.absent(),
               }) => GlobalSettingsCompanion.insert(
@@ -7261,6 +7486,8 @@ class $$GlobalSettingsTableTableManager
                 spaceWarnThresholdGb: spaceWarnThresholdGb,
                 notificationFlags: notificationFlags,
                 backupExportPath: backupExportPath,
+                autoBackupDirty: autoBackupDirty,
+                autoBackupLastExportAt: autoBackupLastExportAt,
                 defaultJobHour: defaultJobHour,
                 defaultJobMinute: defaultJobMinute,
               ),

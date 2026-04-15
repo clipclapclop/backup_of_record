@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/providers/database_provider.dart';
 import '../../../core/providers/jobs_provider.dart';
 import '../widgets/job_card.dart';
 
@@ -127,14 +128,35 @@ class _JobListScreenState extends ConsumerState<JobListScreen>
               ),
             );
           }
-          return ListView.builder(
+          return ReorderableListView.builder(
             padding: const EdgeInsets.only(top: 8, bottom: 88),
             itemCount: jobList.length,
-            itemBuilder: (context, i) => JobCard(
-              job: jobList[i],
-              onTap: () => context.go('/jobs/${jobList[i].id}'),
-              onEdit: () => context.push('/jobs/${jobList[i].id}/edit'),
-            ),
+            buildDefaultDragHandles: false,
+            onReorder: (oldIndex, newIndex) {
+              ref
+                  .read(databaseProvider)
+                  .jobsDao
+                  .reorder(oldIndex, newIndex);
+            },
+            itemBuilder: (context, i) {
+              final job = jobList[i];
+              return JobCard(
+                key: ValueKey(job.id),
+                job: job,
+                onTap: () => context.go('/jobs/${job.id}'),
+                onEdit: () => context.push('/jobs/${job.id}/edit'),
+                dragHandle: ReorderableDragStartListener(
+                  index: i,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
+                    child: Icon(
+                      Icons.drag_handle,
+                      color: cs.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
