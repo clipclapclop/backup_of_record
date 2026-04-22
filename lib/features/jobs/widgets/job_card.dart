@@ -33,6 +33,8 @@ class JobCard extends StatelessWidget {
             children: [
               // Left status accent strip
               Container(width: 4, color: accentColor),
+              // Drag handle (left side)
+              if (dragHandle != null) dragHandle!,
               // Job type icon in a rounded container
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 14, 10, 14),
@@ -155,7 +157,6 @@ class JobCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
                   constraints: const BoxConstraints(),
                 ),
-              ?dragHandle,
             ],
           ),
         ),

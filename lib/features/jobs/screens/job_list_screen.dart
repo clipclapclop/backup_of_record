@@ -148,7 +148,7 @@ class _JobListScreenState extends ConsumerState<JobListScreen>
                 dragHandle: ReorderableDragStartListener(
                   index: i,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 10, 0),
+                    padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
                     child: Icon(
                       Icons.drag_handle,
                       color: cs.onSurface.withValues(alpha: 0.45),

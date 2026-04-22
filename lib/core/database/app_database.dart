@@ -96,6 +96,22 @@ class AppDatabase extends _$AppDatabase {
   );
 
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'backup_of_record');
+    return driftDatabase(
+      name: 'backup_of_record',
+      native: DriftNativeOptions(
+        // Serialise all DB access through a single shared isolate so that
+        // multiple connections (main UI + WorkManager background isolate)
+        // don't fight for the SQLite file lock.
+        shareAcrossIsolates: true,
+        setup: (db) {
+          // WAL mode allows concurrent readers alongside a single writer.
+          db.execute('PRAGMA journal_mode=WAL');
+          // If the shared-isolate path can't be used (e.g. independent
+          // Flutter engines), a busy timeout prevents an immediate
+          // "database is locked" error — SQLite retries for up to 5 s.
+          db.execute('PRAGMA busy_timeout=5000');
+        },
+      ),
+    );
   }
 }
