@@ -12,10 +12,15 @@ void main() async {
   await NotificationService().init();
   await Workmanager().initialize(callbackDispatcher);
 
-  // Re-sync all job schedules on each launch (WorkManager state can be lost
-  // after app updates, device reboots on some OEMs, etc.)
+  // Clean up stale runs and re-sync schedules on each launch.
+  // If the app was killed mid-backup, those runs are still marked "running"
+  // in the DB — fix them before the UI ever sees them.
   final db = AppDatabase();
   try {
+    final cleaned = await db.runsDao.markStaleRunsFailed();
+    if (cleaned > 0) {
+      debugPrint('[main] Marked $cleaned stale run(s) as failed');
+    }
     await SchedulingService.syncAllJobs(db);
   } finally {
     await db.close();

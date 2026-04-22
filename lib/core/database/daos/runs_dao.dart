@@ -60,4 +60,27 @@ class RunsDao extends DatabaseAccessor<AppDatabase> with _$RunsDaoMixin {
         .getSingleOrNull();
     return run?.cancelRequested ?? false;
   }
+
+  /// Marks any runs stuck in "running" or "queued" as failed.
+  /// Call on app startup — if the app is launching fresh, no run can truly
+  /// be in progress, so these are leftovers from a killed process.
+  Future<int> markStaleRunsFailed() async {
+    final now = DateTime.now();
+    final stale = await (select(jobRuns)
+          ..where((r) =>
+              r.status.equals(RunStatus.running.index) |
+              r.status.equals(RunStatus.queued.index)))
+        .get();
+    for (final run in stale) {
+      await (update(jobRuns)..where((r) => r.id.equals(run.id))).write(
+        JobRunsCompanion(
+          status: const Value(RunStatus.failed),
+          completedAt: Value(now),
+          errorSummary:
+              const Value('App was killed while this run was in progress'),
+        ),
+      );
+    }
+    return stale.length;
+  }
 }
